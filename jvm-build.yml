@@ -1,0 +1,90 @@
+name: JVM Build Action
+
+# TODO: MATRIX FOR MULTIPLE JAVA VERSIONS/DISTRIBUTIONS
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: "Optional java version"
+        required: false
+        type: string
+        default: "21"
+      java-distribution:
+        description: "Optional java distribution"
+        required: false
+        type: string
+        default: "temurin"
+      build-cache:
+        description: "Cache to use for the build tool"
+        required: false
+        type: string
+        default: "gradle"
+      build-command:
+        description: "Optional build command to run (default to ./gradlew build)"
+        required: false
+        type: string
+        default: "./gradlew build"
+      default-branch:
+        description: "Default branch to check for releases"
+        required: false
+        type: string
+        default: "main"
+      artifacts-to-upload-path:
+        description: "Path to artifacts to upload after build"
+        required: false
+        type: string
+        default: "build/repo/*.jar"
+      retention-days:
+        description: "Number of days to retain the uploaded artifacts"
+        required: false
+        type: number
+        default: 4
+      runs-on:
+        description: "Optional label for the runner to run on"
+        required: false
+        type: string
+        default: "['ubuntu-latest']"
+
+jobs:
+  build:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+
+      - name: Set IS_DEFAULT_BRANCH env var
+        run: |
+          if [ "${GITHUB_REF##*/}" = "${{ inputs.default-branch }}" ]; then
+            echo "IS_DEFAULT_BRANCH=true" >> $GITHUB_ENV
+          else
+            echo "IS_DEFAULT_BRANCH=false" >> $GITHUB_ENV
+          fi
+
+      - name: Set up JDK ${{ inputs.java-version }}
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: ${{ inputs.java-distribution }}
+          cache: ${{ inputs.build-cache }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5
+
+      - name: Make the short sha
+        id: short_sha
+        run: |
+          echo "GITHUB_SHA_SHORT=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Build with Gradle
+        run: |
+          chmod +x ./gradlew
+          ${{ inputs.build-command }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.short_sha.outputs.GITHUB_SHA_SHORT }}-${{ github.run_id }}
+          path: |
+            ${{ inputs.artifacts-to-upload-path }}
+          retention-days: ${{ inputs.retention-days }}
