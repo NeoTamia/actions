@@ -14,7 +14,7 @@ on:
         description: "Optional java distribution"
         required: false
         type: string
-        default: "temurin"
+        default: "zulu"
       build-cache:
         description: "Cache to use for the build tool"
         required: false
