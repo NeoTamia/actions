@@ -23,3 +23,21 @@ build:
     retention-days: 4 # Optional
     runs-on: "['ubuntu-latest']" # Optional
 ```
+
+- [JVM Publish](./jvm-publish.yml)
+
+This action is used to automatically publish a java/kotlin project to a Maven repository.
+
+### Usage
+
+```yaml
+publish:
+  uses: NeoTamia/actions/jvm-publish.yml@main
+  with:
+    java-version: "21" # Optional
+    java-distribution: "temurin" # Optional
+    build-cache: "gradle" # Optional
+    publish-command: "./gradlew publish" # Optional
+    default-branch: "main" # Optional
+    runs-on: "['ubuntu-latest']" # Optional
+```

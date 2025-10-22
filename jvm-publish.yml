@@ -1,0 +1,80 @@
+name: JVM Publish Action
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: "Optional java version"
+        required: false
+        type: string
+        default: "21"
+      java-distribution:
+        description: "Optional java distribution"
+        required: false
+        type: string
+        default: "zulu"
+      build-cache:
+        description: "Cache to use for the build tool"
+        required: false
+        type: string
+        default: "gradle"
+      publish-command:
+        description: "Optional publish command to run (default to ./gradlew publish)"
+        required: false
+        type: string
+        default: "./gradlew publish"
+      default-branch:
+        description: "Default branch to check for releases"
+        required: false
+        type: string
+        default: "main"
+      runs-on:
+        description: "Optional label for the runner to run on"
+        required: false
+        type: string
+        default: "['ubuntu-latest']"
+    secrets:
+      MAVEN_USERNAME:
+        description: "Username for Maven repository"
+        required: true
+      MAVEN_PASSWORD:
+        description: "Password for Maven repository"
+        required: true
+
+jobs:
+  publish:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+
+      - name: Set IS_DEFAULT_BRANCH env var
+        run: |
+          if [ "${GITHUB_REF##*/}" = "${{ inputs.default-branch }}" ]; then
+            echo "IS_DEFAULT_BRANCH=true" >> $GITHUB_ENV
+          else
+            echo "IS_DEFAULT_BRANCH=false" >> $GITHUB_ENV
+          fi
+
+      - name: Set up JDK ${{ inputs.java-version }}
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: ${{ inputs.java-distribution }}
+          cache: ${{ inputs.build-cache }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5
+
+      - name: Make the short sha
+        id: short_sha
+        run: |
+          echo "GITHUB_SHA_SHORT=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Publish project
+        run: |
+          chmod +x ./gradlew
+          ${{ inputs.publish-command }}
+        env:
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
