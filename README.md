@@ -12,7 +12,7 @@ This action is used to automatically build a java/kotlin project.
 
 ```yaml
 build:
-  uses: NeoTamia/actions/jvm-build.yml@main
+  uses: NeoTamia/actions/.github/workflows/jvm-build.yml@main
   with:
     java-version: "21" # Optional
     java-distribution: "zulu" # Optional
@@ -32,7 +32,7 @@ This action is used to automatically publish a java/kotlin project to a Maven re
 
 ```yaml
 publish:
-  uses: NeoTamia/actions/jvm-publish.yml@main
+  uses: NeoTamia/actions/.github/workflows/jvm-publish.yml@main
   with:
     java-version: "21" # Optional
     java-distribution: "zulu" # Optional
