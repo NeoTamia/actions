@@ -15,7 +15,7 @@ build:
   uses: NeoTamia/actions/jvm-build.yml@main
   with:
     java-version: "21" # Optional
-    java-distribution: "temurin" # Optional
+    java-distribution: "zulu" # Optional
     build-cache: "gradle" # Optional
     build-command: "./gradlew build" # Optional
     default-branch: "main" # Optional
@@ -35,7 +35,7 @@ publish:
   uses: NeoTamia/actions/jvm-publish.yml@main
   with:
     java-version: "21" # Optional
-    java-distribution: "temurin" # Optional
+    java-distribution: "zulu" # Optional
     build-cache: "gradle" # Optional
     publish-command: "./gradlew publish" # Optional
     default-branch: "main" # Optional
