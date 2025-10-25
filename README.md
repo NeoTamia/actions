@@ -40,4 +40,9 @@ publish:
     publish-command: "./gradlew publish" # Optional
     default-branch: "main" # Optional
     runs-on: "['ubuntu-latest']" # Optional
+  secrets: inherit
+  #or
+  secrets:
+    MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+    MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
 ```
