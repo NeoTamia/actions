@@ -46,3 +46,24 @@ publish:
     MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
     MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
 ```
+
+- [JVM Test](./jvm-test.yml)
+
+This action is used to automatically run tests for a java/kotlin project.
+
+### Usage
+
+```yaml
+test:
+  uses: NeoTamia/actions/.github/workflows/jvm-test.yml@main
+  with:
+    java-version: "21" # Optional
+    java-distribution: "zulu" # Optional
+    build-cache: "gradle" # Optional
+    test-command: "./gradlew test" # Optional
+    publish-test-report: "true" # Optional
+    fail-on-test-failure: "true" # Optional
+    retention-days: 4 # Optional
+    runs-on: "['ubuntu-latest']" # Optional
+```
+
