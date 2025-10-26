@@ -73,7 +73,9 @@ jobs:
 
       - name: Publish project
         run: |
-          chmod +x ./gradlew
+          if [ ! -x ./gradlew ]; then
+            chmod +x ./gradlew
+          fi
           ${{ inputs.publish-command }}
         env:
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
