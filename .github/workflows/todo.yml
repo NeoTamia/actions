@@ -7,7 +7,7 @@ on:
         description: "Optional label for the runner to run on"
         required: false
         type: string
-        default: "self-hosted"
+        default: "['ubuntu-latest']"
       MANUAL_COMMIT_REF:
         description: "The SHA of the commit to get the diff for"
         required: false
@@ -20,13 +20,13 @@ on:
 jobs:
   todo-issues:
     name: Run Todo Issues
-    runs-on: ${{ inputs.runs-on }}
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
     permissions:
       issues: write
       contents: read
     steps:
       - name: Checkout
-        uses: aactions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
 
       - name: Manually importing TODO to Issues
         if: github.event_name == 'workflow_dispatch'

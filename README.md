@@ -67,3 +67,15 @@ test:
     runs-on: "['ubuntu-latest']" # Optional
 ```
 
+- [Todo](./.github/workflows/todo.yml)
+
+This action is used to automatically create a new issue when a commit containing the word `todo` or `fixme` is pushed to a branch.
+
+### Usage
+
+```yaml
+todo:
+  uses: NeoTamia/actions/.github/workflows/todo.yml@main
+  with:
+    runs-on: "['self-hosted']" # Optional
+```
