@@ -78,4 +78,6 @@ todo:
   uses: NeoTamia/actions/.github/workflows/todo.yml@main
   with:
     runs-on: "['self-hosted']" # Optional
+    MANUAL_COMMIT_REF: <commit_sha> # Only for manual runs
+    MANUAL_BASE_REF: <commit_sha> # Only for manual runs
 ```
