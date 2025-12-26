@@ -1,0 +1,93 @@
+name: Gitflow Release Action
+
+on:
+  workflow_call:
+    inputs:
+      target-branch:
+        description: "Optional branch to target for release"
+        required: false
+        type: string
+        default: "dev"
+      default-branch:
+        description: "Optional default branch to target for release"
+        required: false
+        type: string
+        default: "main"
+      runs-on:
+        description: "Optional label for the runner to run on"
+        required: false
+        type: string
+        default: "['ubuntu-latest']"
+      committer-email:
+        description: "Optional committer email"
+        required: false
+        type: string
+        default: "47529956+alwyn974@users.noreply.github.com"
+      committer-name:
+        description: "Optional committer name"
+        required: false
+        type: string
+        default: "alwyn974"
+      tag_name:
+        description: "Tag name for the release"
+        required: true
+        type: string
+      version:
+        description: "Version to be set in the project"
+        required: true
+        type: string
+    secrets:
+      APP_ID:
+        description: "GitHub App ID"
+        required: true
+      APP_PRIVATE_KEY:
+        description: "GitHub App Private Key"
+        required: true
+
+jobs:
+  gitflow-release:
+    name: Gitflow Release - Root
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions:
+      contents: write
+    steps:
+      - name: Generate token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
+
+      - name: Checkout code
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Release root component
+        env:
+          release_version: ${{ inputs.tag_name }}
+          version: ${{ inputs.version }}
+          NEXT_BRANCH: ${{ inputs.target-branch }}
+          DEFAULT_BRANCH: ${{ inputs.default-branch }}
+        run: |
+          git config --global user.name ${{ inputs.committer-name }}
+          git config --global user.email ${{ inputs.committer-email }}
+
+          # Create new release branch (e.g release/docs-v1.0.0, release/v1.0.0) from NEXT_BRANCH (e.g dev)
+          git checkout -b release/${{ env.release_version }} ${{ env.NEXT_BRANCH }}
+
+          # Merge release branch into the default branch (e.g main)
+          git checkout ${{ env.DEFAULT_BRANCH }}
+          git merge --no-ff release/${{ env.release_version }}
+
+          # git tag --delete ${{ env.release_version }} # remove release please tag
+          # git tag -a ${{ env.release_version }} -m "Tagging version ${{ env.release_version }}" # create new tag on default branch
+
+          git checkout ${{ env.NEXT_BRANCH }}
+          git merge --no-ff ${{ env.release_version }}
+          git branch -d release/${{ env.release_version }}
+
+          git merge --no-ff ${{ env.DEFAULT_BRANCH }} # merge main into dev
+
+          git push --all && git push --tags
