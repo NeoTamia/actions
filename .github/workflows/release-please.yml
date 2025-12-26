@@ -1,0 +1,137 @@
+name: Release Please Action
+
+on:
+  workflow_call:
+    inputs:
+      target-branch:
+        description: "Optional branch to target for release"
+        required: false
+        type: string
+        default: "dev"
+      default-branch:
+        description: "Optional default branch to target for release"
+        required: false
+        type: string
+        default: "main"
+      config-file:
+        description: "Optional path to the release-please configuration file"
+        required: false
+        type: string
+        default: "release-please-config.json"
+      manifest-file:
+        description: "Optional path to the release-please manifest file"
+        required: false
+        type: string
+        default: ".release-please-manifest.json"
+      runs-on:
+        description: "Optional label for the runner to run on"
+        required: false
+        type: string
+        default: "['ubuntu-latest']"
+      committer-email:
+        description: "Optional committer email"
+        required: false
+        type: string
+        default: "47529956+alwyn974@users.noreply.github.com"
+      committer-name:
+        description: "Optional committer name"
+        required: false
+        type: string
+        default: "alwyn974"
+    secrets:
+      RELEASE_PLEASE_APP_ID:
+        description: "GitHub App ID"
+        required: true
+      RELEASE_PLEASE_PRIVATE_KEY:
+        description: "GitHub App Private Key"
+        required: true
+    outputs:
+      outputs:
+        description: "All outputs from the release-please action as JSON"
+        value: ${{ jobs.release-please.outputs.outputs }}
+      # https://github.com/googleapis/release-please-action?tab=readme-ov-file#outputs
+      releases_created:
+        description: "Boolean indicating if releases were created"
+        value: ${{ jobs.release-please.outputs.releases_created }}
+      paths_released:
+        description: "A JSON string of the array of paths that had releases created ([] if )"
+        value: ${{ jobs.release-please.outputs.paths_released }}
+      prs_created:
+        description: "Boolean if any pull request was created or updated"
+        value: ${{ jobs.release-please.outputs.prs_created }}
+      pr:
+        description: "A JSON string of the PullRequest object (unset if no release created) https://github.com/googleapis/release-please/blob/main/src/pull-request.ts#L15"
+        value: ${{ jobs.release-please.outputs.pr }}
+      prs:
+        description: "A JSON string of the array of PullRequest objects (unset if no release created) https://github.com/googleapis/release-please/blob/main/src/pull-request.ts#L15"
+        value: ${{ jobs.release-please.outputs.prs }}
+      # https://github.com/googleapis/release-please-action?tab=readme-ov-file#root-component-outputs
+      release_created:
+        description: "Boolean if a root component release was created, false otherwise"
+        value: ${{ jobs.release-please.outputs.release_created }}
+      upload_url:
+        description: "Directly related to Create a release API https://developer.github.com/v3/repos/releases/#response-4"
+        value: ${{ jobs.release-please.outputs.upload_url }}
+      html_url:
+        description: "Directly related to Create a release API https://developer.github.com/v3/repos/releases/#response-4"
+        value: ${{ jobs.release-please.outputs.html_url }}
+      tag_name:
+        description: "Directly related to Create a release API https://developer.github.com/v3/repos/releases/#response-4"
+        value: ${{ jobs.release-please.outputs.tag_name }}
+      version:
+        description: "Version number (major.minor.patch) of the release created"
+        value: ${{ jobs.release-please.outputs.version }}
+      major:
+        description: "Major version number"
+        value: ${{ jobs.release-please.outputs.major }}
+      minor:
+        description: "Minor version number"
+        value: ${{ jobs.release-please.outputs.minor }}
+      patch:
+        description: "Patch version number"
+        value: ${{ jobs.release-please.outputs.patch }}
+      sha:
+        description: "SHA of the commit that was released"
+        value: ${{ jobs.release-please.outputs.sha }}
+
+jobs:
+  release-please:
+    name: Run Release Please
+    permissions:
+      contents: write # to create release commit (google-github-actions/release-please-action)
+      pull-requests: write # to create release PR (google-github-actions/release-please-action)
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    outputs:
+      outputs: ${{ toJson(steps.release-please.outputs) }}
+      releases_created: ${{ steps.release-please.outputs.releases_created }}
+      paths_released: ${{ steps.release-please.outputs.paths_released }}
+      prs_created: ${{ steps.release-please.outputs.prs_created }}
+      pr: ${{ steps.release-please.outputs.pr }}
+      prs: ${{ steps.release-please.outputs.prs }}
+      # only with root component "."
+      release_created: ${{ steps.release-please.outputs.release_created }}
+      upload_url: ${{ steps.release-please.outputs.upload_url }}
+      html_url: ${{ steps.release-please.outputs.html_url }}
+      tag_name: ${{ steps.release-please.outputs.tag_name }}
+      # Doesn't exist in docs ? But works
+      version: ${{ steps.release-please.outputs.version }}
+      major: ${{ steps.release-please.outputs.major }}
+      minor: ${{ steps.release-please.outputs.minor }}
+      patch: ${{ steps.release-please.outputs.patch }}
+      sha: ${{ steps.release-please.outputs.sha }}
+    steps:
+      - name: Generate token
+        uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Release Please
+        uses: googleapis/release-please-action@v4.4.0
+        id: release-please
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: ${{ inputs.config-file }}
+          manifest-file: ${{ inputs.manifest-file }}
+          target-branch: ${{ inputs.target-branch }}

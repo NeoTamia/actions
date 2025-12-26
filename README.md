@@ -81,3 +81,27 @@ todo:
     MANUAL_COMMIT_REF: <commit_sha> # Only for manual runs
     MANUAL_BASE_REF: <commit_sha> # Only for manual runs
 ```
+
+- [Release Please](./.github/workflows/release-please.yml)
+
+This action is used to automatically create a new release PR when a commit is pushed to the dev branch.
+
+### Usage
+
+```yaml
+release-please:
+  uses: Streetless/actions/.github/workflows/release-please.yml@main
+  with:
+    target-branch: "dev" # Optional
+    default-branch: "main" # Optional
+    config-file: ".release-please-config.json" # Optional
+    manifest-file: ".release-please-manifest.json" # Optional
+    runs-on: "['ubuntu-latest']" # Optional
+    committer-email: "47529956+alwyn974@users.noreply.github.com" # Optional
+    committer-name: "alwyn974" # Optional
+  secrets: inherit
+  # or
+  secrets:
+    RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+    RELEASE_PLEASE_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
+```
