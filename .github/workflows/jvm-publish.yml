@@ -53,14 +53,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
-      - name: Set IS_DEFAULT_BRANCH env var
-        run: |
-          if [ "${GITHUB_REF##*/}" = "${{ inputs.default-branch }}" ]; then
-            echo "IS_DEFAULT_BRANCH=true" >> $GITHUB_ENV
-          else
-            echo "IS_DEFAULT_BRANCH=false" >> $GITHUB_ENV
-          fi
-
       - name: Set up JDK ${{ inputs.java-version }}
         uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5
         with:
@@ -85,7 +77,8 @@ jobs:
           if [ ! -x ./gradlew ]; then
             chmod +x ./gradlew
           fi
-          if [ "$RELEASE" != "true" ] && [ "$IS_DEFAULT_BRANCH" != "true" ]; then
+
+          if [ "$RELEASE" != "true" ]; then
             ${{ inputs.publish-command }}
           elif
             ${{ inputs.publish-command }} -Drepository.name=releases
