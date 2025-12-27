@@ -34,6 +34,7 @@ This action is used to automatically publish a java/kotlin project to a Maven re
 publish:
   uses: NeoTamia/actions/.github/workflows/jvm-publish.yml@main
   with:
+    release: false # Optional
     java-version: "21" # Optional
     java-distribution: "zulu" # Optional
     build-cache: "gradle" # Optional

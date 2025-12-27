@@ -3,6 +3,11 @@ name: JVM Publish Action
 on:
   workflow_call:
     inputs:
+      release:
+        description: "Whether to perform a release publish"
+        required: false
+        type: boolean
+        default: false
       java-version:
         description: "Optional java version"
         required: false
@@ -73,7 +78,7 @@ jobs:
 
       - name: Publish project
         env:
-          RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          RELEASE: ${{ inputs.release }}
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
         run: |
