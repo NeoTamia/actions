@@ -128,3 +128,21 @@ gitflow-release:
   secrets:
     RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }}
     RELEASE_PLEASE_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
+```
+
+- [JVM Lint](./jvm-lint.yml)
+
+This action is used to automatically run lint checks for a java/kotlin project.
+
+### Usage
+
+```yaml
+lint:
+  uses: NeoTamia/actions/.github/workflows/jvm-lint.yml@main
+  with:
+    java-version: "21" # Optional
+    java-distribution: "zulu" # Optional
+    build-cache: "gradle" # Optional
+    lint-command: "./gradlew spotlessCheck" # Optional
+    runs-on: "['ubuntu-latest']" # Optional
+```

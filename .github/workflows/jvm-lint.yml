@@ -1,0 +1,54 @@
+name: JVM Lint Action
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: "Optional java version"
+        required: false
+        type: string
+        default: "21"
+      java-distribution:
+        description: "Optional java distribution"
+        required: false
+        type: string
+        default: "zulu"
+      build-cache:
+        description: "Cache to use for the build tool"
+        required: false
+        type: string
+        default: "gradle"
+      lint-command:
+        description: "Optional lint command to run (default to ./gradlew spotlessCheck)"
+        required: false
+        type: string
+        default: "./gradlew spotlessCheck"
+      runs-on:
+        description: "Optional label for the runner to run on"
+        required: false
+        type: string
+        default: "['ubuntu-latest']"
+
+jobs:
+  build:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Set up JDK ${{ inputs.java-version }}
+        uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: ${{ inputs.java-distribution }}
+          cache: ${{ inputs.build-cache }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5
+
+      - name: Build with Gradle
+        run: |
+          if [ ! -x ./gradlew ]; then
+            chmod +x ./gradlew
+          fi
+          ${{ inputs.lint-command }}
