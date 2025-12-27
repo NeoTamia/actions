@@ -80,6 +80,6 @@ jobs:
 
           if [ "$RELEASE" != "true" ]; then
             ${{ inputs.publish-command }}
-          elif
+          else
             ${{ inputs.publish-command }} -Drepository.name=releases
           fi
