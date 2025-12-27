@@ -1,0 +1,106 @@
+name: JVM Build and Publish Action
+
+on:
+  workflow_call:
+    inputs:
+      release:
+        description: "Whether to perform a release publish"
+        required: false
+        type: boolean
+        default: false
+      java-version:
+        description: "Optional java version"
+        required: false
+        type: string
+        default: "21"
+      java-distribution:
+        description: "Optional java distribution"
+        required: false
+        type: string
+        default: "zulu"
+      build-cache:
+        description: "Cache to use for the build tool"
+        required: false
+        type: string
+        default: "gradle"
+      build-command:
+        description: "Optional build command to run (default to ./gradlew build)"
+        required: false
+        type: string
+        default: "./gradlew build"
+      artifacts-to-upload-path:
+        description: "Path to artifacts to upload after build"
+        required: false
+        type: string
+        default: "build/repo/*.jar"
+      retention-days:
+        description: "Number of days to retain the uploaded artifacts"
+        required: false
+        type: number
+        default: 4
+      publish-command:
+        description: "Optional publish command to run (default to ./gradlew publish)"
+        required: false
+        type: string
+        default: "./gradlew publish"
+      runs-on:
+        description: "Optional label for the runner to run on"
+        required: false
+        type: string
+        default: "['ubuntu-latest']"
+    secrets:
+      MAVEN_USERNAME:
+        description: "Username for Maven repository"
+        required: true
+      MAVEN_PASSWORD:
+        description: "Password for Maven repository"
+        required: true
+
+jobs:
+  build:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Set up JDK ${{ inputs.java-version }}
+        uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: ${{ inputs.java-distribution }}
+          cache: ${{ inputs.build-cache }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5
+
+      - name: Make the short sha
+        id: short_sha
+        run: |
+          echo "GITHUB_SHA_SHORT=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Build with Gradle
+        run: |
+          if [ ! -x ./gradlew ]; then
+            chmod +x ./gradlew
+          fi
+          ${{ inputs.build-command }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ${{ steps.short_sha.outputs.GITHUB_SHA_SHORT }}-${{ github.run_id }}
+          path: |
+            ${{ inputs.artifacts-to-upload-path }}
+          retention-days: ${{ inputs.retention-days }}
+
+      - name: Publish project
+        env:
+          RELEASE: ${{ inputs.release }}
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+        run: |
+          if [ "$RELEASE" != "true" ]; then
+            ${{ inputs.publish-command }}
+          else
+            ${{ inputs.publish-command }} -Drepository.name=releases
+          fi
