@@ -3,6 +3,14 @@ name: Gitflow Release Action
 on:
   workflow_call:
     inputs:
+      tag-name:
+        description: "Tag name for the release"
+        required: true
+        type: string
+      version:
+        description: "Version to be set in the project"
+        required: true
+        type: string
       target-branch:
         description: "Optional branch to target for release"
         required: false
@@ -28,14 +36,6 @@ on:
         required: false
         type: string
         default: "alwyn974"
-      tag-name:
-        description: "Tag name for the release"
-        required: true
-        type: string
-      version:
-        description: "Version to be set in the project"
-        required: true
-        type: string
     secrets:
       RELEASE_PLEASE_APP_ID:
         description: "GitHub App ID"
