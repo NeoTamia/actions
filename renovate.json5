@@ -9,7 +9,6 @@
   useBaseBranchConfig: 'merge',
   baseBranchPatterns: [
     '$default',
-    'dev',
   ],
   major: {
     dependencyDashboardApproval: true,
