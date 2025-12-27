@@ -72,11 +72,16 @@ jobs:
           echo "GITHUB_SHA_SHORT=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
 
       - name: Publish project
+        env:
+          RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
         run: |
           if [ ! -x ./gradlew ]; then
             chmod +x ./gradlew
           fi
-          ${{ inputs.publish-command }}
-        env:
-          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+          if [ "$RELEASE" != "true" ] && [ "$IS_DEFAULT_BRANCH" != "true" ]; then
+            ${{ inputs.publish-command }}
+          elif
+            ${{ inputs.publish-command }} -Drepository.name=releases
+          fi
