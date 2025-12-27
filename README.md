@@ -105,3 +105,26 @@ release-please:
     RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }}
     RELEASE_PLEASE_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
 ```
+
+- [Gitflow Release](./.github/workflows/gitflow-release.yml)
+
+This action is used to automatically create a gitflow release when a release PR is merged.
+
+### Usage
+
+```yaml
+gitflow-release:
+  uses: NeoTamia/actions/.github/workflows/gitflow-release.yml@main
+  with:
+    tag-name: "<tag_name>" # Required
+    version: "<version>" # Required
+    target-branch: "dev" # Optional
+    default-branch: "main" # Optional
+    runs-on: "['ubuntu-latest']" # Optional
+    committer-email: "47529956+alwyn974@users.noreply.github.com" # Optional
+    committer-name: "alwyn974" # Optional
+  secrets: inherit
+  # or
+  secrets:
+    RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+    RELEASE_PLEASE_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
