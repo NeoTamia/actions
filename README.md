@@ -4,6 +4,32 @@ This repository contains a collection of [reusable actions](https://docs.github.
 
 ## Available Actions
 
+- [JVM Build and Publish](./jvm-build-and-publish.yml)
+
+This action is used to automatically build and publish a java/kotlin project to a Maven repository.
+
+### Usage
+
+```yaml
+build-and-publish:
+  uses: NeoTamia/actions/.github/workflows/jvm-build-and-publish.yml@main
+  with:
+    release: false # Optional
+    java-version: "21" # Optional
+    java-distribution: "zulu" # Optional
+    build-cache: "gradle" # Optional
+    build-command: "./gradlew build" # Optional
+    publish-command: "./gradlew publish" # Optional
+    artifacts-to-upload-path: "build/repo/*.jar" # Optional
+    retention-days: 4 # Optional
+    runs-on: "['ubuntu-latest']" # Optional
+  secrets: inherit
+  #or
+  secrets:
+    MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+    MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+```
+
 - [JVM Build](./jvm-build.yml)
 
 This action is used to automatically build a java/kotlin project.
