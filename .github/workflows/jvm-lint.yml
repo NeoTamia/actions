@@ -66,7 +66,7 @@ jobs:
           ./gradlew spotlessApply
 
       - name: Review changes
-        if: steps.spotless-apply.outcome == 'success'
+        if: ${{ always() && steps.spotless-apply.outcome == 'success' }}
         uses: reviewdog/action-suggester@v1.24.0
         with:
           tool_name: spotless
