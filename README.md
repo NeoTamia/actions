@@ -83,6 +83,9 @@ This action is used to automatically run tests for a java/kotlin project.
 ```yaml
 test:
   uses: NeoTamia/actions/.github/workflows/jvm-test.yml@main
+  permissions:
+    checks: write
+    pull-requests: write
   with:
     java-version: "21" # Optional
     java-distribution: "zulu" # Optional
@@ -103,6 +106,9 @@ This action is used to automatically create a new issue when a commit containing
 ```yaml
 todo:
   uses: NeoTamia/actions/.github/workflows/todo.yml@main
+  permissions:
+    issues: write
+    contents: read
   with:
     runs-on: "['self-hosted']" # Optional
     MANUAL_COMMIT_REF: <commit_sha> # Only for manual runs
@@ -118,6 +124,9 @@ This action is used to automatically create a new release PR when a commit is pu
 ```yaml
 release-please:
   uses: Streetless/actions/.github/workflows/release-please.yml@main
+  permissions:
+    contents: write
+    pull-requests: write
   with:
     target-branch: "dev" # Optional
     default-branch: "main" # Optional
@@ -142,6 +151,8 @@ This action is used to automatically create a gitflow release when a release PR 
 ```yaml
 gitflow-release:
   uses: NeoTamia/actions/.github/workflows/gitflow-release.yml@main
+  permissions:
+    contents: write
   with:
     tag-name: "<tag_name>" # Required
     version: "<version>" # Required
@@ -166,6 +177,11 @@ This action is used to automatically run lint checks for a java/kotlin project.
 ```yaml
 lint:
   uses: NeoTamia/actions/.github/workflows/jvm-lint.yml@main
+  permissions:
+    contents: read
+    checks: write
+    issues: write
+    pull-requests: write
   with:
     java-version: "21" # Optional
     java-distribution: "zulu" # Optional
