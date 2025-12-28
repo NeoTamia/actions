@@ -30,8 +30,13 @@ on:
         default: "['ubuntu-latest']"
 
 jobs:
-  build:
+  lint:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions:
+      contents: read
+      checks: write
+      issues: write
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
@@ -46,9 +51,23 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5
 
-      - name: Build with Gradle
+      - name: Run lint command
+        id: spotless-check
         run: |
           if [ ! -x ./gradlew ]; then
             chmod +x ./gradlew
           fi
           ${{ inputs.lint-command }}
+
+      - name: Apply spotless
+        id: spotless-apply
+        if: steps.spotless-check.outcome == 'failure'
+        run: |
+          ./gradlew spotlessApply
+
+      - name: Review changes
+        if: steps.spotless-apply.outcome == 'success'
+        uses: reviewdog/action-suggester@v1.24.0
+        with:
+          tool_name: spotless
+          filter_mode: added
