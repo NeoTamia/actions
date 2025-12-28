@@ -61,7 +61,7 @@ jobs:
 
       - name: Apply spotless
         id: spotless-apply
-        if: steps.spotless-check.outcome == 'failure'
+        if: ${{ failure() && steps.spotless-check.outcome == 'failure' }}
         run: |
           ./gradlew spotlessApply
 
