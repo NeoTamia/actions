@@ -46,8 +46,8 @@ on:
       submodules:
         description: "Whether to checkout submodules: `true` to checkout submodules or `recursive` to recursively checkout submodules"
         required: false
-        type: string
-        default: "false"
+        type: boolean
+        default: false
       codecov:
         description: "Whether to upload code coverage to codecov.io"
         required: false
