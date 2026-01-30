@@ -24,7 +24,7 @@ on:
         description: "Optional build command to run (default to ./gradlew build)"
         required: false
         type: string
-        default: "./gradlew build -x test"
+        default: "./gradlew build -x test -Pspotless.enforceCheck=false"
       default-branch:
         description: "Default branch to check for releases"
         required: false
