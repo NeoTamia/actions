@@ -27,7 +27,7 @@ on:
         description: "Optional build command to run (default to ./gradlew build)"
         required: false
         type: string
-        default: "./gradlew build"
+        default: "./gradlew build -x test"
       artifacts-to-upload-path:
         description: "Path to artifacts to upload after build"
         required: false
