@@ -14,6 +14,7 @@ This action is used to automatically build and publish a java/kotlin project to 
 build-and-publish:
   uses: NeoTamia/actions/.github/workflows/jvm-build-and-publish.yml@main
   with:
+    publish: true # Optional
     release: false # Optional
     java-version: "21" # Optional
     java-distribution: "zulu" # Optional

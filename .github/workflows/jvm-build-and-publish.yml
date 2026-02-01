@@ -3,6 +3,11 @@ name: JVM Build and Publish Action
 on:
   workflow_call:
     inputs:
+      publish:
+        description: "Whether to perform a publish"
+        required: false
+        type: boolean
+        default: false
       release:
         description: "Whether to perform a release publish"
         required: false
@@ -94,6 +99,7 @@ jobs:
           retention-days: ${{ inputs.retention-days }}
 
       - name: Publish project
+        if: ${{ github.event_name != 'pull_request' && inputs.publish }}
         env:
           RELEASE: ${{ inputs.release }}
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
