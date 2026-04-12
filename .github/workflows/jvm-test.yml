@@ -65,10 +65,15 @@ jobs:
       checks: write
       pull-requests: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - name: Checkout (with submodules)
+        if: ${{ inputs.submodules }}
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6
         with:
           submodules: ${{ inputs.submodules }}
+
+      - name: Checkout
+        if: ${{ !inputs.submodules }}
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6
 
       - name: Set up JDK ${{ inputs.java-version }}
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
