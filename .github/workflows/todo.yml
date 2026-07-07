@@ -30,7 +30,7 @@ jobs:
 
       - name: Manually importing TODO to Issues
         if: github.event_name == 'workflow_dispatch'
-        uses: alstr/todo-to-issue-action@64aca8fda7023259aada83ba44ad988c4c443657 # v5
+        uses: alstr/todo-to-issue-action@37bb7b56e58569ef273b60678048030a7f0c261a # v5
         env:
           MANUAL_COMMIT_REF: ${{ inputs.MANUAL_COMMIT_REF }}
           MANUAL_BASE_REF: ${{ inputs.MANUAL_BASE_REF }}
@@ -48,7 +48,7 @@ jobs:
 
       - name: Importing TODO to Issues
         if: github.event_name != 'workflow_dispatch'
-        uses: alstr/todo-to-issue-action@64aca8fda7023259aada83ba44ad988c4c443657 # v5
+        uses: alstr/todo-to-issue-action@37bb7b56e58569ef273b60678048030a7f0c261a # v5
         with:
           AUTO_ASSIGN: true
           ISSUE_TEMPLATE: |
