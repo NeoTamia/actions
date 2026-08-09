@@ -36,10 +36,15 @@ on:
         required: false
         type: string
         default: "alwyn974"
+      client-id:
+        description: "Optional GitHub App Client ID"
+        required: false
+        type: string
+        default: ""
     secrets:
       RELEASE_PLEASE_APP_ID:
-        description: "GitHub App ID"
-        required: true
+        description: "Legacy GitHub App ID fallback"
+        required: false
       RELEASE_PLEASE_PRIVATE_KEY:
         description: "GitHub App Private Key"
         required: true
@@ -52,14 +57,14 @@ jobs:
       contents: write
     steps:
       - name: Generate token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token
         with:
-          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          client-id: ${{ inputs.client-id || secrets.RELEASE_PLEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
 
       - name: Checkout code
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}

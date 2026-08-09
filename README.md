@@ -4,7 +4,7 @@ This repository contains a collection of [reusable actions](https://docs.github.
 
 ## Available Actions
 
-- [JVM Build and Publish](./jvm-build-and-publish.yml)
+- [JVM Build and Publish](./.github/workflows/jvm-build-and-publish.yml)
 
 This action is used to automatically build and publish a java/kotlin project to a Maven repository.
 
@@ -31,7 +31,7 @@ build-and-publish:
     MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
 ```
 
-- [JVM Build](./jvm-build.yml)
+- [JVM Build](./.github/workflows/jvm-build.yml)
 
 This action is used to automatically build a java/kotlin project.
 
@@ -51,7 +51,7 @@ build:
     runs-on: "['ubuntu-latest']" # Optional
 ```
 
-- [JVM Publish](./jvm-publish.yml)
+- [JVM Publish](./.github/workflows/jvm-publish.yml)
 
 This action is used to automatically publish a java/kotlin project to a Maven repository.
 
@@ -75,7 +75,7 @@ publish:
     MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
 ```
 
-- [JVM Test](./jvm-test.yml)
+- [JVM Test](./.github/workflows/jvm-test.yml)
 
 This action is used to automatically run tests for a java/kotlin project.
 
@@ -124,7 +124,7 @@ This action is used to automatically create a new release PR when a commit is pu
 
 ```yaml
 release-please:
-  uses: Streetless/actions/.github/workflows/release-please.yml@main
+  uses: NeoTamia/actions/.github/workflows/release-please.yml@main
   permissions:
     contents: write
     pull-requests: write
@@ -136,10 +136,11 @@ release-please:
     runs-on: "['ubuntu-latest']" # Optional
     committer-email: "47529956+alwyn974@users.noreply.github.com" # Optional
     committer-name: "alwyn974" # Optional
+    client-id: ${{ vars.RELEASE_PLEASE_CLIENT_ID }} # Optional; falls back to RELEASE_PLEASE_APP_ID
   secrets: inherit
   # or
   secrets:
-    RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+    RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }} # Legacy fallback
     RELEASE_PLEASE_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
 ```
 
@@ -162,14 +163,15 @@ gitflow-release:
     runs-on: "['ubuntu-latest']" # Optional
     committer-email: "47529956+alwyn974@users.noreply.github.com" # Optional
     committer-name: "alwyn974" # Optional
+    client-id: ${{ vars.RELEASE_PLEASE_CLIENT_ID }} # Optional; falls back to RELEASE_PLEASE_APP_ID
   secrets: inherit
   # or
   secrets:
-    RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+    RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }} # Legacy fallback
     RELEASE_PLEASE_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
 ```
 
-- [JVM Lint](./jvm-lint.yml)
+- [JVM Lint](./.github/workflows/jvm-lint.yml)
 
 This action is used to automatically run lint checks for a java/kotlin project.
 
