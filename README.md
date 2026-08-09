@@ -136,7 +136,7 @@ release-please:
     runs-on: "['ubuntu-latest']" # Optional
     committer-email: "47529956+alwyn974@users.noreply.github.com" # Optional
     committer-name: "alwyn974" # Optional
-    client-id: ${{ vars.RELEASE_PLEASE_CLIENT_ID }} # Optional; falls back to RELEASE_PLEASE_APP_ID
+    client-id: ${{ vars.RELEASE_PLEASE_CLIENT_ID }} # Optional
   secrets: inherit
   # or
   secrets:
@@ -162,42 +162,12 @@ gitflow-release:
     runs-on: "['ubuntu-latest']" # Optional
     committer-email: "47529956+alwyn974@users.noreply.github.com" # Optional
     committer-name: "alwyn974" # Optional
-    client-id: ${{ vars.RELEASE_PLEASE_CLIENT_ID }} # Optional; falls back to RELEASE_PLEASE_APP_ID
+    client-id: ${{ vars.RELEASE_PLEASE_CLIENT_ID }} # Optional
   secrets: inherit
   # or
   secrets:
     RELEASE_PLEASE_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
 ```
-
-## Migrate from App ID to Client ID
-
-`actions/create-github-app-token` recommends the GitHub App Client ID instead of
-the legacy numeric App ID. The Client ID is a public identifier and should be
-stored as an Actions variable; the private key must remain an Actions secret.
-
-1. Open the GitHub App settings and copy its **Client ID**.
-2. In the organization or repository, open **Settings → Secrets and variables →
-   Actions → Variables**.
-3. Create a variable named `RELEASE_PLEASE_CLIENT_ID` containing the Client ID.
-4. Pass the variable to both reusable release workflows when they are used:
-
-```yaml
-with:
-  client-id: ${{ vars.RELEASE_PLEASE_CLIENT_ID }}
-secrets: inherit
-```
-
-If secrets are mapped explicitly, keep the private key mapping:
-
-```yaml
-secrets:
-  RELEASE_PLEASE_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
-```
-
-The reusable workflows continue to use `RELEASE_PLEASE_APP_ID` when `client-id`
-is omitted, so existing callers can migrate independently. Once every caller
-passes `client-id`, remove the obsolete `RELEASE_PLEASE_APP_ID` secret from the
-repository or organization.
 
 - [JVM Lint](./.github/workflows/jvm-lint.yml)
 
