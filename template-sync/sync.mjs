@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -25,14 +26,11 @@ import {
   threeWayMerge,
 } from "./lib.mjs";
 
-const ZERO_SHA = "0".repeat(40);
-
-function run(args, { cwd, env, input, check = true, encoding = "utf8" } = {}) {
+function run(args, { cwd, env, check = true, encoding = "utf8" } = {}) {
   try {
     const stdout = execFileSync(args[0], args.slice(1), {
       cwd,
       env: { ...process.env, ...env },
-      input,
       encoding,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -109,73 +107,14 @@ function ghJson(args, token, { check = true } = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-function resolveTargetBranch(fullName, prefer, defaultBranch, token) {
-  const info = ghJson(["api", `repos/${fullName}/branches/${prefer}`], token, { check: false });
-  return info ? prefer : defaultBranch;
-}
-
-function discoverTargets(org, templateRepo, config, token) {
-  const targets = new Map();
-
-  if (config.discover) {
-    const query = `
-      query($login: String!, $cursor: String) {
-        organization(login: $login) {
-          repositories(first: 100, after: $cursor) {
-            pageInfo { hasNextPage endCursor }
-            nodes {
-              name
-              isTemplate
-              isArchived
-              defaultBranchRef { name }
-              templateRepository { nameWithOwner }
-            }
-          }
-        }
-      }
-    `;
-    let cursor = null;
-    while (true) {
-      const args = ["api", "graphql", "-f", `query=${query}`, "-F", `login=${org}`];
-      if (cursor) args.push("-F", `cursor=${cursor}`);
-      const payload = ghJson(args, token);
-      const repositories = payload.data.organization.repositories;
-      for (const node of repositories.nodes) {
-        const template = node.templateRepository?.nameWithOwner;
-        if (template !== templateRepo) continue;
-        if (config.skip_archived && node.isArchived) continue;
-        const name = node.name;
-        const fullName = `${org}/${name}`;
-        if (fullName === templateRepo) continue;
-        if (config.exclude_repos.includes(name) || config.exclude_repos.includes(fullName)) continue;
-        targets.set(fullName, {
-          fullName,
-          name,
-          isTemplate: Boolean(node.isTemplate),
-          defaultBranch: node.defaultBranchRef?.name || "main",
-          archived: Boolean(node.isArchived),
-        });
-      }
-      if (!repositories.pageInfo.hasNextPage) break;
-      cursor = repositories.pageInfo.endCursor;
-    }
+function appendOutput(name, value) {
+  const file = process.env.GITHUB_OUTPUT;
+  if (!file) return;
+  if (String(value).includes("\n")) {
+    appendFileSync(file, `${name}<<EOF\n${value}\nEOF\n`);
+  } else {
+    appendFileSync(file, `${name}=${value}\n`);
   }
-
-  for (const extra of config.include_repos) {
-    const fullName = extra.includes("/") ? extra : `${org}/${extra}`;
-    if (fullName === templateRepo || targets.has(fullName)) continue;
-    const info = ghJson(["api", `repos/${fullName}`], token);
-    if (config.skip_archived && info.archived) continue;
-    targets.set(fullName, {
-      fullName,
-      name: info.name,
-      isTemplate: Boolean(info.is_template),
-      defaultBranch: info.default_branch || "main",
-      archived: Boolean(info.archived),
-    });
-  }
-
-  return [...targets.values()].sort((a, b) => a.fullName.localeCompare(b.fullName));
 }
 
 export function applyFile({
@@ -230,268 +169,148 @@ export function applyFile({
   return { changed: true, conflict };
 }
 
-function cloneRepo(fullName, branch, dest, token) {
+function resolveParent(destRoot, destRepo, token) {
+  const destConfig = loadConfig(destRoot);
+  let sourceRepo = destConfig.source || "";
+  if (!sourceRepo) {
+    const info = ghJson(["api", `repos/${destRepo}`], token);
+    sourceRepo = info?.template_repository?.full_name || "";
+  }
+  if (!sourceRepo) return null;
+
+  let ref = destConfig.source_ref || "";
+  if (!ref) {
+    const prefer = destConfig.prefer_branch || "dev";
+    const branch = ghJson(["api", `repos/${sourceRepo}/branches/${prefer}`], token, { check: false });
+    if (branch) ref = prefer;
+    else {
+      const srcInfo = ghJson(["api", `repos/${sourceRepo}`], token);
+      ref = srcInfo?.default_branch || "main";
+    }
+  }
+  return { repo: sourceRepo, ref };
+}
+
+function cloneSource(fullName, ref, dest, token) {
   run(
-    ["gh", "repo", "clone", fullName, dest, "--", "--branch", branch, "--single-branch", "--depth", "1"],
+    ["gh", "repo", "clone", fullName, dest, "--", "--branch", ref],
     { env: { GH_TOKEN: token, GITHUB_TOKEN: token } },
   );
-}
-
-function ensureLabel(fullName, token) {
-  run(
-    [
-      "gh",
-      "label",
-      "create",
-      "template-sync",
-      "--repo",
-      fullName,
-      "--description",
-      "Automated updates from the parent template",
-      "--color",
-      "0E8A16",
-      "--force",
-    ],
-    { env: { GH_TOKEN: token, GITHUB_TOKEN: token }, check: false },
-  );
-}
-
-function openOrUpdatePr({ fullName, base, head, title, body, token, draft }) {
-  const existing = ghJson(
-    ["pr", "list", "--repo", fullName, "--head", head, "--base", base, "--json", "url,number"],
-    token,
-  ) || [];
-  if (existing.length > 0) {
-    run(
-      ["gh", "pr", "edit", String(existing[0].number), "--repo", fullName, "--body", body, "--title", title],
-      { env: { GH_TOKEN: token, GITHUB_TOKEN: token }, check: false },
-    );
-    return existing[0].url;
-  }
-  const cmd = [
-    "gh",
-    "pr",
-    "create",
-    "--repo",
-    fullName,
-    "--base",
-    base,
-    "--head",
-    head,
-    "--title",
-    title,
-    "--body",
-    body,
-    "--label",
-    "template-sync",
-  ];
-  if (draft) cmd.push("--draft");
-  const result = run(cmd, { env: { GH_TOKEN: token, GITHUB_TOKEN: token }, check: false });
-  if (result.status !== 0) {
-    process.stderr.write(result.stderr);
-    return null;
-  }
-  return result.stdout.trim();
-}
-
-function syncTarget({
-  sourceRoot,
-  sourceId,
-  target,
-  config,
-  files,
-  templateRepo,
-  headSha,
-  ancestorSha,
-  token,
-  dryRun,
-  draft,
-  workDir,
-}) {
-  const branch = resolveTargetBranch(target.fullName, config.prefer_branch, target.defaultBranch, token);
-  if (target.name.includes("/") || target.name.includes("\\") || target.name === "." || target.name === "..") {
-    throw new Error(`invalid target name: ${target.name}`);
-  }
-  const destRoot = resolve(workDir, target.name);
-  if (destRoot === resolve(workDir) || !destRoot.startsWith(`${resolve(workDir)}/`)) {
-    throw new Error(`refusing to write outside work dir: ${destRoot}`);
-  }
-  console.log(`::group::Sync ${target.fullName} (base: ${branch})`);
-  cloneRepo(target.fullName, branch, destRoot, token);
-  const destId = identityFromRepo(target.fullName.split("/")[0], target.name);
-  const destAncestor = loadState(destRoot).sha || ancestorSha;
-  const changedFiles = [];
-  const conflicts = [];
-
-  for (const { relPath, strategy } of files) {
-    const effective = classifyFile(relPath, config, { destIsTemplate: target.isTemplate });
-    if (!effective) continue;
-    const { changed, conflict } = applyFile({
-      sourceRoot,
-      destRoot,
-      relPath,
-      strategy: effective,
-      sourceId,
-      destId,
-      ancestorSha: destAncestor,
-      config,
-    });
-    const destRel = mapPath(relPath, sourceId, destId, config);
-    if (changed) changedFiles.push(destRel);
-    if (conflict) conflicts.push(destRel);
-  }
-
-  writeState(destRoot, templateRepo, headSha);
-  const status = run(["git", "status", "--porcelain"], { cwd: destRoot });
-  if (changedFiles.length === 0 && !status.stdout.trim()) {
-    console.log("Already up to date");
-    console.log("::endgroup::");
-    return null;
-  }
-
-  console.log("Changed files:");
-  for (const path of changedFiles) console.log(`  - ${path}`);
-  if (dryRun) {
-    console.log("Dry run: skipping commit/PR");
-    console.log("::endgroup::");
-    return null;
-  }
-
-  run(["git", "config", "user.name", "github-actions[bot]"], { cwd: destRoot });
-  run(
-    ["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"],
-    { cwd: destRoot },
-  );
-  run(["git", "checkout", "-B", "chore/template-sync"], { cwd: destRoot });
-  run(["git", "add", "-A"], { cwd: destRoot });
-  const commit = run(
-    ["git", "commit", "-m", `chore(template): sync from ${templateRepo}`],
-    { cwd: destRoot, check: false },
-  );
-  if (commit.status !== 0) {
-    console.log("No commit created");
-    console.log("::endgroup::");
-    return null;
-  }
-  run(["git", "push", "-u", "origin", "chore/template-sync", "--force"], {
-    cwd: destRoot,
-    env: { GH_TOKEN: token, GITHUB_TOKEN: token, GIT_TERMINAL_PROMPT: "0" },
-  });
-  ensureLabel(target.fullName, token);
-  const fileList = changedFiles.map((path) => `- \`${path}\``).join("\n") || "- (state only)";
-  let conflictNote = "";
-  if (conflicts.length > 0) {
-    conflictNote =
-      "\n\nThis PR contains 3-way merge conflicts in:\n" +
-      conflicts.map((path) => `- \`${path}\``).join("\n") +
-      "\nPlease resolve the conflict markers before merging.";
-  }
-  let cascadeNote = "";
-  if (target.isTemplate) {
-    cascadeNote =
-      "\n\nThis repository is itself a template. After merging, its own " +
-      "`Template Sync` workflow will open PRs on repositories created from it.";
-  }
-  const body =
-    `Automated sync from [\`${templateRepo}\`](https://github.com/${templateRepo}) ` +
-    `at \`${headSha.slice(0, 12)}\`.\n\n` +
-    `Updated files:\n${fileList}` +
-    `${conflictNote}${cascadeNote}\n`;
-  const url = openOrUpdatePr({
-    fullName: target.fullName,
-    base: branch,
-    head: "chore/template-sync",
-    title: `chore(template): sync from ${templateRepo}`,
-    body,
-    token,
-    draft: draft || conflicts.length > 0,
-  });
-  console.log(url || "PR was not created");
-  console.log("::endgroup::");
-  return url;
-}
-
-function resolveAncestorSha(sourceRoot, beforeSha) {
-  if (beforeSha && beforeSha !== ZERO_SHA) return beforeSha;
-  return gitRevParse(sourceRoot, "HEAD^");
 }
 
 export function main(argv = process.argv.slice(2)) {
   const { values } = parseArgs({
     args: argv,
     options: {
-      source: { type: "string", default: "." },
-      org: { type: "string" },
-      "template-repo": { type: "string" },
+      dest: { type: "string", default: "." },
+      "dest-repo": { type: "string" },
       token: { type: "string" },
-      "head-sha": { type: "string" },
-      "before-sha": { type: "string", default: "" },
       "dry-run": { type: "boolean", default: false },
-      draft: { type: "boolean", default: false },
     },
     allowPositionals: false,
   });
 
   const token = values.token || process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
   if (!token) {
-    process.stderr.write("A GitHub token is required\n");
-    return 1;
-  }
-  if (!values.org || !values["template-repo"]) {
-    process.stderr.write("--org and --template-repo are required\n");
+    process.stderr.write("A GitHub token is required to read the parent template\n");
     return 1;
   }
 
-  const sourceRoot = resolve(values.source);
-  const config = loadConfig(sourceRoot);
-  const [owner, repoName] = values["template-repo"].split("/");
-  const sourceId = identityFromRepo(owner, repoName);
-  const files = selectedSourceFiles(sourceRoot, config);
-  const headSha = values["head-sha"] || gitRevParse(sourceRoot, "HEAD");
-  const ancestorSha = resolveAncestorSha(sourceRoot, values["before-sha"]);
-  const targets = discoverTargets(values.org, values["template-repo"], config, token);
+  const destRoot = resolve(values.dest);
+  const destRepo = values["dest-repo"] || process.env.GITHUB_REPOSITORY;
+  if (!destRepo || !destRepo.includes("/")) {
+    process.stderr.write("--dest-repo or GITHUB_REPOSITORY is required\n");
+    return 1;
+  }
 
-  console.log(`Source identity: ${JSON.stringify(sourceId)}`);
-  console.log(`Files to consider: ${files.length}`);
-  console.log(`Targets: ${targets.map((target) => target.fullName).join(", ") || "(none)"}`);
-  if (targets.length === 0) {
-    console.log("No downstream repositories found");
+  const parent = resolveParent(destRoot, destRepo, token);
+  if (!parent) {
+    console.log("No parent template (not generated from a GitHub template, no `source` in config). Skip.");
+    appendOutput("changed", "false");
+    appendOutput("has_parent", "false");
     return 0;
   }
 
-  const prs = [];
+  console.log(`Pulling ${parent.repo}@${parent.ref} into ${destRepo}`);
+  appendOutput("has_parent", "true");
+  appendOutput("template", parent.repo);
+  appendOutput("ref", parent.ref);
+
   const workDir = mkdtempSync(join(tmpdir(), "template-sync-"));
+  const sourceRoot = join(workDir, "source");
   try {
-    for (const target of targets) {
-      try {
-        const url = syncTarget({
-          sourceRoot,
-          sourceId,
-          target,
-          config,
-          files,
-          templateRepo: values["template-repo"],
-          headSha,
-          ancestorSha,
-          token,
-          dryRun: values["dry-run"],
-          draft: values.draft,
-          workDir,
-        });
-        if (url) prs.push(url);
-      } catch (error) {
-        console.log(`::error::Failed to sync ${target.fullName}: ${error.message}`);
-      }
+    cloneSource(parent.repo, parent.ref, sourceRoot, token);
+    const sourceConfig = loadConfig(sourceRoot);
+    const [sourceOwner, sourceName] = parent.repo.split("/");
+    const [destOwner, destName] = destRepo.split("/");
+    const sourceId = identityFromRepo(sourceOwner, sourceName);
+    const destId = identityFromRepo(destOwner, destName);
+    const files = selectedSourceFiles(sourceRoot, sourceConfig);
+    const headSha = gitRevParse(sourceRoot, "HEAD");
+    const ancestorSha = loadState(destRoot).sha || gitRevParse(sourceRoot, "HEAD^");
+
+    console.log(`Source identity: ${JSON.stringify(sourceId)}`);
+    console.log(`Dest identity: ${JSON.stringify(destId)}`);
+    console.log(`Files to consider: ${files.length}`);
+
+    const changedFiles = [];
+    const conflicts = [];
+    for (const { relPath, strategy } of files) {
+      const { changed, conflict } = applyFile({
+        sourceRoot,
+        destRoot,
+        relPath,
+        strategy,
+        sourceId,
+        destId,
+        ancestorSha,
+        config: sourceConfig,
+      });
+      const destRel = mapPath(relPath, sourceId, destId, sourceConfig);
+      if (changed) changedFiles.push(destRel);
+      if (conflict) conflicts.push(destRel);
     }
+
+    writeState(destRoot, parent.repo, headSha);
+    const status = run(["git", "status", "--porcelain"], { cwd: destRoot });
+    const changed = changedFiles.length > 0 || Boolean(status.stdout.trim());
+
+    if (!changed) {
+      console.log("Already up to date");
+      appendOutput("changed", "false");
+      return 0;
+    }
+
+    console.log("Changed files:");
+    for (const path of changedFiles) console.log(`  - ${path}`);
+    if (conflicts.length > 0) {
+      console.log("Conflicts:");
+      for (const path of conflicts) console.log(`  - ${path}`);
+    }
+    if (values["dry-run"]) {
+      console.log("Dry run: files were applied locally but no PR will be opened");
+    }
+
+    const fileList = changedFiles.map((path) => `- \`${path}\``).join("\n") || "- (state only)";
+    let body =
+      `Automated sync from [\`${parent.repo}\`](https://github.com/${parent.repo}) ` +
+      `(\`${parent.ref}\` @ \`${headSha.slice(0, 12)}\`).\n\n` +
+      `Updated files:\n${fileList}\n`;
+    if (conflicts.length > 0) {
+      body +=
+        "\nThis PR contains 3-way merge conflicts in:\n" +
+        conflicts.map((path) => `- \`${path}\``).join("\n") +
+        "\nPlease resolve the conflict markers before merging.\n";
+    }
+    appendOutput("changed", "true");
+    appendOutput("sha", headSha);
+    appendOutput("title", `chore(template): sync from ${parent.repo}`);
+    appendOutput("body", body);
+    appendOutput("draft", conflicts.length > 0 ? "true" : "false");
+    return 0;
   } finally {
     rmSync(workDir, { recursive: true, force: true });
   }
-
-  if (prs.length > 0) {
-    console.log("Opened or updated PRs:");
-    for (const url of prs) console.log(`  ${url}`);
-  }
-  return 0;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -171,14 +171,18 @@ gitflow-release:
 
 - [Template Sync](./.github/workflows/template-sync.yml)
 
-Pushes updates from a template repository into the repositories created from it.
-The engine is stack-agnostic: Gradle, Node, monorepos, and anything else share the
-same reusable workflow. Each template describes *its* files and identity tokens in
-`.github/template-sync.yml`.
+Each generated repository **pulls** its parent GitHub template and opens a PR
+**on itself** with `GITHUB_TOKEN`. The parent template never pushes to other
+repos (and does not need permission to do so).
 
-Nested templates (for example `plugin-template` generated from `kotlin-template`)
-receive a PR first; after it is merged, their own Template Sync workflow fans out
-to *their* generated repositories.
+The parent is `template_repository` from the GitHub API, or `source:` in
+`.github/template-sync.yml`. Root templates have no parent and the job no-ops.
+Nested templates work the same way: `plugin-template` pulls `kotlin-template`;
+a plugin created from `plugin-template` pulls `plugin-template`.
+
+Triggers on the generated repo: daily schedule, `workflow_dispatch`, or
+`repository_dispatch` (`template-sync`). The engine is stack-agnostic; each
+template describes its files and identity tokens in `.github/template-sync.yml`.
 
 Strategies:
 
@@ -219,9 +223,9 @@ identity:
     ghcr.io/neotamia: "ghcr.io/{owner_lower}"
 ```
 
-The GitHub App (same one as Release Please) must be installed on the template
-and on every downstream repository, with `contents: write`, `pull-requests: write`,
-`metadata: read`, and `workflows: write`.
+The workflow runs in the generated repository. Grant `contents: write` and
+`pull-requests: write` so `GITHUB_TOKEN` can open the PR there. No GitHub App
+and no `secrets: inherit` are required for public templates.
 
 ### Usage
 
@@ -229,20 +233,20 @@ and on every downstream repository, with `contents: write`, `pull-requests: writ
 name: Template Sync
 
 on:
-  push:
-    branches:
-      - dev
-      - main
+  schedule:
+    - cron: "17 6 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Log the repos and files that would change, without opening PRs"
+        description: "Log the files that would change, without opening a PR"
         type: boolean
         default: false
       draft_pr:
-        description: "Open downstream PRs as drafts"
+        description: "Open the sync PR as a draft"
         type: boolean
         default: false
+  repository_dispatch:
+    types: [template-sync]
 
 concurrency:
   group: template-sync
@@ -250,12 +254,11 @@ concurrency:
 
 jobs:
   sync:
-    name: Sync generated repositories
-    if: ${{ github.event.repository.is_template }}
+    name: Pull parent template
     uses: NeoTamia/actions/.github/workflows/template-sync.yml@main
     permissions:
-      contents: read
-    secrets: inherit
+      contents: write
+      pull-requests: write
     with:
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
       draft_pr: ${{ github.event_name == 'workflow_dispatch' && inputs.draft_pr || false }}

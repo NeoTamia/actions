@@ -35,26 +35,18 @@ export const DEFAULT_THREE_WAY = ["AGENTS.md", ".github/template-sync.yml"];
 
 export const DEFAULT_EXCLUDE = [".github/template-sync-state.json", "README.md"];
 
-export const DEFAULT_TEMPLATE_ONLY = [
-  ".github/workflows/template-sync.yml",
-  ".github/template-sync.yml",
-];
-
 export const DEFAULT_OWNER_FILES = ["README.md", "CONTRIBUTING.md"];
 
 export function defaultConfig() {
   return {
-    discover: true,
-    skip_archived: true,
+    source: "",
+    source_ref: "",
     prefer_branch: "dev",
-    exclude_repos: [],
-    include_repos: [],
     overwrite: [...DEFAULT_OVERWRITE],
     merge_toml: [],
     merge_json: [],
     three_way: [...DEFAULT_THREE_WAY],
     exclude: [...DEFAULT_EXCLUDE],
-    template_only: [...DEFAULT_TEMPLATE_ONLY],
     identity: {
       extra: {},
       owner_files: [...DEFAULT_OWNER_FILES],
@@ -191,19 +183,21 @@ export function loadConfig(root, { readFile = readFileSync } = {}) {
 
   const parsed = parseSimpleYaml(text);
   for (const field of [
-    "discover",
-    "skip_archived",
+    "source",
+    "source_ref",
     "prefer_branch",
-    "exclude_repos",
-    "include_repos",
     "overwrite",
     "merge_toml",
     "merge_json",
     "three_way",
     "exclude",
-    "template_only",
   ]) {
-    if (field in parsed) config[field] = parsed[field];
+    if (!(field in parsed)) continue;
+    let value = parsed[field];
+    if ((field === "source" || field === "source_ref") && Array.isArray(value) && value.length === 0) {
+      value = "";
+    }
+    config[field] = value;
   }
   if (parsed.identity && typeof parsed.identity === "object" && !Array.isArray(parsed.identity)) {
     if (parsed.identity.extra && typeof parsed.identity.extra === "object" && !Array.isArray(parsed.identity.extra)) {
@@ -284,10 +278,8 @@ export function mapPath(relPath, source, dest, config = defaultConfig()) {
   return substitute(relPath, source, dest, relPath, config);
 }
 
-export function classifyFile(relPath, config, { destIsTemplate = true } = {}) {
+export function classifyFile(relPath, config) {
   if (config.exclude.some((pattern) => pathMatches(relPath, pattern))) return null;
-  const templateOnly = config.template_only ?? DEFAULT_TEMPLATE_ONLY;
-  if (!destIsTemplate && templateOnly.some((pattern) => pathMatches(relPath, pattern))) return null;
   if ((config.merge_toml ?? []).some((pattern) => pathMatches(relPath, pattern))) return "merge_toml";
   if ((config.merge_json ?? []).some((pattern) => pathMatches(relPath, pattern))) return "merge_json";
   if (config.three_way.some((pattern) => pathMatches(relPath, pattern))) return "three_way";

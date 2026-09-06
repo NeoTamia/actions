@@ -220,10 +220,7 @@ test("defaults are stack-agnostic; gradle files need template config", () => {
   assert.equal(classifyFile("AGENTS.md", defaults), "three_way");
   assert.equal(classifyFile(".github/workflows/build.yml", defaults), null);
   assert.equal(classifyFile(".editorconfig", defaults), "overwrite");
-  assert.equal(
-    classifyFile(".github/workflows/template-sync.yml", defaults, { destIsTemplate: false }),
-    null,
-  );
+  assert.equal(classifyFile(".github/workflows/template-sync.yml", defaults), "overwrite");
 
   const gradle = gradleConfig();
   assert.equal(classifyFile("gradle/libs.versions.toml", gradle), "merge_toml");
@@ -233,13 +230,14 @@ test("defaults are stack-agnostic; gradle files need template config", () => {
   assert.equal(classifyFile(".github/workflows/build.yml", gradle), "overwrite");
 });
 
-test("loadConfig reads nested identity from a repo config file", () => {
+test("loadConfig reads nested identity and empty source as a string", () => {
   const dir = mkdtempSync(join(tmpdir(), "template-sync-config-"));
   try {
     mkdirSync(join(dir, ".github"));
     writeFileSync(
       join(dir, ".github/template-sync.yml"),
-      `discover: true
+      `source:
+source_ref:
 prefer_branch: dev
 merge_json:
   - package.json
@@ -253,7 +251,8 @@ overwrite:
 `,
     );
     const config = loadConfig(dir);
-    assert.equal(config.discover, true);
+    assert.equal(config.source, "");
+    assert.equal(config.source_ref, "");
     assert.equal(config.prefer_branch, "dev");
     assert.deepEqual(config.overwrite, [".editorconfig"]);
     assert.deepEqual(config.merge_json, ["package.json"]);
