@@ -169,6 +169,98 @@ gitflow-release:
     RELEASE_PLEASE_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
 ```
 
+- [Template Sync](./.github/workflows/template-sync.yml)
+
+Pushes updates from a template repository into the repositories created from it.
+The engine is stack-agnostic: Gradle, Node, monorepos, and anything else share the
+same reusable workflow. Each template describes *its* files and identity tokens in
+`.github/template-sync.yml`.
+
+Nested templates (for example `plugin-template` generated from `kotlin-template`)
+receive a PR first; after it is merged, their own Template Sync workflow fans out
+to *their* generated repositories.
+
+Strategies:
+
+- `overwrite` — copy after rewriting the dest project identity
+- `merge_toml` — template keys win, dest-only keys are kept (Gradle version catalogs)
+- `merge_json` — same idea, deep-merge (`package.json` in Node / monorepos)
+- `three_way` — apply the template delta since the last sync (customized files)
+- `exclude` — never touch these paths (`src/**`, `README.md`, lockfiles, setup workflows)
+
+Built-in identity tokens, derived from the GitHub owner/repo name:
+
+| Token | Example (`NeoTamia/kotlin-template`) |
+|---|---|
+| `{owner}` | `NeoTamia` |
+| `{owner_lower}` | `neotamia` |
+| `{owner_slug}` | `neotamia` |
+| `{kebab}` | `kotlin-template` |
+| `{pascal}` | `KotlinTemplate` |
+| `{camel}` | `kotlinTemplate` |
+| `{display}` | `Kotlin Template` |
+| `{slug}` | `kotlintemplate` |
+
+Stack-specific strings go under `identity.extra`. The key is the literal in the
+template; the value is interpolated for the destination repo:
+
+```yaml
+# Gradle / Kotlin
+identity:
+  extra:
+    re.neotamia.kotlintemplate: re.{owner_slug}.{slug}
+    neotamia-build: "{slug}-build"
+
+# Node / monorepo
+identity:
+  extra:
+    "@neotamia/monorepo-template": "@{owner_lower}/{kebab}"
+    NeoTamia/monorepo-template: "{owner}/{kebab}"
+    ghcr.io/neotamia: "ghcr.io/{owner_lower}"
+```
+
+The GitHub App (same one as Release Please) must be installed on the template
+and on every downstream repository, with `contents: write`, `pull-requests: write`,
+`metadata: read`, and `workflows: write`.
+
+### Usage
+
+```yaml
+name: Template Sync
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Log the repos and files that would change, without opening PRs"
+        type: boolean
+        default: false
+      draft_pr:
+        description: "Open downstream PRs as drafts"
+        type: boolean
+        default: false
+
+concurrency:
+  group: template-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync generated repositories
+    if: ${{ github.event.repository.is_template }}
+    uses: NeoTamia/actions/.github/workflows/template-sync.yml@main
+    permissions:
+      contents: read
+    secrets: inherit
+    with:
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+      draft_pr: ${{ github.event_name == 'workflow_dispatch' && inputs.draft_pr || false }}
+```
+
 - [JVM Lint](./.github/workflows/jvm-lint.yml)
 
 This action is used to automatically run lint checks for a java/kotlin project.

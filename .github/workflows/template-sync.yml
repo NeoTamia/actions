@@ -1,0 +1,71 @@
+name: Template Sync
+
+on:
+  workflow_call:
+    inputs:
+      dry_run:
+        description: "Log the repos and files that would change, without opening PRs"
+        required: false
+        type: boolean
+        default: false
+      draft_pr:
+        description: "Open downstream PRs as drafts"
+        required: false
+        type: boolean
+        default: false
+      runs-on:
+        description: "Optional label for the runner to run on"
+        required: false
+        type: string
+        default: "['ubuntu-latest']"
+      client-id:
+        description: "Optional GitHub App Client ID"
+        required: false
+        type: string
+        default: "Iv23liRE0ivKP2pdXFhr"
+    secrets:
+      RELEASE_PLEASE_PRIVATE_KEY:
+        description: "GitHub App Private Key"
+        required: true
+
+jobs:
+  sync:
+    name: Sync generated repositories
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions:
+      contents: read
+    steps:
+      - name: Generate token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ inputs.client-id }}
+          private-key: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout template
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Checkout sync engine
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .neotamia-actions
+          sparse-checkout: template-sync
+          persist-credentials: false
+
+      - name: Sync template
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          node .neotamia-actions/template-sync/sync.mjs \
+            --source . \
+            --org "${{ github.repository_owner }}" \
+            --template-repo "${{ github.repository }}" \
+            --head-sha "${{ github.sha }}" \
+            --before-sha "${{ github.event.before }}" \
+            ${{ inputs.dry_run && '--dry-run' || '' }} \
+            ${{ inputs.draft_pr && '--draft' || '' }}
