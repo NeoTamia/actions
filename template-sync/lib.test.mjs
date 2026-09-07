@@ -220,14 +220,15 @@ test("defaults are stack-agnostic; gradle files need template config", () => {
   assert.equal(classifyFile("AGENTS.md", defaults), "three_way");
   assert.equal(classifyFile(".github/workflows/build.yml", defaults), null);
   assert.equal(classifyFile(".editorconfig", defaults), "overwrite");
-  assert.equal(classifyFile(".github/workflows/template-sync.yml", defaults), "overwrite");
+  assert.equal(classifyFile(".github/workflows/template-sync.yml", defaults), null);
+  assert.equal(classifyFile(".github/workflows/build.yml", defaults), null);
 
   const gradle = gradleConfig();
   assert.equal(classifyFile("gradle/libs.versions.toml", gradle), "merge_toml");
   assert.equal(classifyFile("buildSrc/src/main/kotlin/neotamia-build.gradle.kts", gradle), "three_way");
   assert.equal(classifyFile("modules/core/src/main/kotlin/App.kt", gradle), null);
   assert.equal(classifyFile(".github/workflows/project-setup.yml", gradle), null);
-  assert.equal(classifyFile(".github/workflows/build.yml", gradle), "overwrite");
+  assert.equal(classifyFile(".github/workflows/build.yml", gradle), null);
 });
 
 test("loadConfig reads nested identity and empty source as a string", () => {

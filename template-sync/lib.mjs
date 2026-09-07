@@ -26,7 +26,6 @@ export const DEFAULT_OVERWRITE = [
   ".github/renovate.json5",
   ".github/ISSUE_TEMPLATE/**",
   ".github/PULL_REQUEST_TEMPLATE.md",
-  ".github/workflows/template-sync.yml",
   "CODE_OF_CONDUCT.md",
   "CONTRIBUTING.md",
 ];
@@ -279,6 +278,8 @@ export function mapPath(relPath, source, dest, config = defaultConfig()) {
 }
 
 export function classifyFile(relPath, config) {
+  // GITHUB_TOKEN cannot create or update files under .github/workflows/.
+  if (pathMatches(relPath, ".github/workflows/**")) return null;
   if (config.exclude.some((pattern) => pathMatches(relPath, pattern))) return null;
   if ((config.merge_toml ?? []).some((pattern) => pathMatches(relPath, pattern))) return "merge_toml";
   if ((config.merge_json ?? []).some((pattern) => pathMatches(relPath, pattern))) return "merge_json";
