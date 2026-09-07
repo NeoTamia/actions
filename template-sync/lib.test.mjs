@@ -221,6 +221,7 @@ test("defaults are stack-agnostic; gradle files need template config", () => {
   assert.equal(classifyFile(".github/workflows/build.yml", defaults), null);
   assert.equal(classifyFile(".editorconfig", defaults), "overwrite");
   assert.equal(classifyFile(".github/workflows/template-sync.yml", defaults), null);
+  assert.equal(classifyFile(".github/template-sync.yml", defaults), null);
   assert.equal(classifyFile(".github/workflows/build.yml", defaults), null);
 
   const gradle = gradleConfig();

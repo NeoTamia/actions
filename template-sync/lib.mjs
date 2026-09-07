@@ -30,9 +30,13 @@ export const DEFAULT_OVERWRITE = [
   "CONTRIBUTING.md",
 ];
 
-export const DEFAULT_THREE_WAY = ["AGENTS.md", ".github/template-sync.yml"];
+export const DEFAULT_THREE_WAY = ["AGENTS.md"];
 
-export const DEFAULT_EXCLUDE = [".github/template-sync-state.json", "README.md"];
+export const DEFAULT_EXCLUDE = [
+  ".github/template-sync-state.json",
+  ".github/template-sync.yml",
+  "README.md",
+];
 
 export const DEFAULT_OWNER_FILES = ["README.md", "CONTRIBUTING.md"];
 
@@ -280,6 +284,8 @@ export function mapPath(relPath, source, dest, config = defaultConfig()) {
 export function classifyFile(relPath, config) {
   // GITHUB_TOKEN cannot create or update files under .github/workflows/.
   if (pathMatches(relPath, ".github/workflows/**")) return null;
+  // Dest config (source pointer / nested extras) is not the parent strategy file.
+  if (pathMatches(relPath, CONFIG_PATH)) return null;
   if (config.exclude.some((pattern) => pathMatches(relPath, pattern))) return null;
   if ((config.merge_toml ?? []).some((pattern) => pathMatches(relPath, pattern))) return "merge_toml";
   if ((config.merge_json ?? []).some((pattern) => pathMatches(relPath, pattern))) return "merge_json";
