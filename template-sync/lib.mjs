@@ -409,6 +409,22 @@ export function mergeJson(templateText, destText) {
   return `${JSON.stringify(merged, null, detectJsonIndent(destText))}\n`;
 }
 
+export function commonLinesAncestor(dest, incoming) {
+  const incomingCounts = new Map();
+  for (const line of incoming.split("\n")) {
+    incomingCounts.set(line, (incomingCounts.get(line) || 0) + 1);
+  }
+  const ancestor = [];
+  for (const line of dest.split("\n")) {
+    const remaining = incomingCounts.get(line) || 0;
+    if (remaining > 0) {
+      ancestor.push(line);
+      incomingCounts.set(line, remaining - 1);
+    }
+  }
+  return ancestor.join("\n");
+}
+
 export function threeWayMerge(ancestor, dest, incoming) {
   const dir = mkdtempSync(join(tmpdir(), "template-sync-"));
   try {

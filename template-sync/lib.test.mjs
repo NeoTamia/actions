@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import {
   classifyFile,
+  commonLinesAncestor,
   defaultConfig,
   identityFromRepo,
   interpolate,
@@ -211,6 +212,33 @@ test("three-way merge preserves dest custom lines", () => {
   assert.equal(conflict, false);
   assert.match(text, /changed/);
   assert.match(text, /custom/);
+});
+
+test("common-lines ancestor adds template lines dest never had", () => {
+  const dest = `plugins {
+    kotlin-dsl
+}
+
+dependencies {
+    implementation(libs.kotlinGradlePlugin)
+    implementation(libs.spotlessGradlePlugin)
+}
+`;
+  const incoming = `plugins {
+    kotlin-dsl
+}
+
+dependencies {
+    implementation(libs.kotlinGradlePlugin)
+    implementation(libs.spotlessGradlePlugin)
+    implementation(libs.versionCheckerGradlePlugin)
+}
+`;
+  const ancestor = commonLinesAncestor(dest, incoming);
+  const { text, conflict } = threeWayMerge(ancestor, dest, incoming);
+  assert.equal(conflict, false);
+  assert.match(text, /versionCheckerGradlePlugin/);
+  assert.match(text, /spotlessGradlePlugin/);
 });
 
 test("defaults are stack-agnostic; gradle files need template config", () => {

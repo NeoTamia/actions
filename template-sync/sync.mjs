@@ -16,6 +16,7 @@ import { parseArgs } from "node:util";
 import {
   STATE_PATH,
   classifyFile,
+  commonLinesAncestor,
   identityFromRepo,
   isBinary,
   loadConfig,
@@ -149,16 +150,11 @@ export function applyFile({
     output = destExists ? mergeToml(incoming, destText) : incoming;
   } else if (strategy === "merge_json") {
     output = destExists ? mergeJson(incoming, destText) : incoming;
-  } else if (strategy === "three_way" && destExists && ancestorSha) {
-    const ancestorBlob = gitShow(sourceRoot, ancestorSha, relPath);
-    if (ancestorBlob == null || isBinary(ancestorBlob)) {
-      output = incoming;
-    } else {
-      const ancestor = substitute(ancestorBlob.toString("utf8"), sourceId, destId, relPath, config);
-      const merged = threeWayMerge(ancestor, destText, incoming);
-      output = merged.text;
-      conflict = merged.conflict;
-    }
+  } else if (strategy === "three_way" && destExists) {
+    const ancestor = commonLinesAncestor(destText, incoming);
+    const merged = threeWayMerge(ancestor, destText, incoming);
+    output = merged.text;
+    conflict = merged.conflict;
   } else {
     output = incoming;
   }
