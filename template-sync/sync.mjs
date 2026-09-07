@@ -204,17 +204,13 @@ export function main(argv = process.argv.slice(2)) {
     options: {
       dest: { type: "string", default: "." },
       "dest-repo": { type: "string" },
+      source: { type: "string" },
+      "template-repo": { type: "string" },
       token: { type: "string" },
       "dry-run": { type: "boolean", default: false },
     },
     allowPositionals: false,
   });
-
-  const token = values.token || process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
-  if (!token) {
-    process.stderr.write("A GitHub token is required to read the parent template\n");
-    return 1;
-  }
 
   const destRoot = resolve(values.dest);
   const destRepo = values["dest-repo"] || process.env.GITHUB_REPOSITORY;
@@ -223,7 +219,21 @@ export function main(argv = process.argv.slice(2)) {
     return 1;
   }
 
-  const parent = resolveParent(destRoot, destRepo, token);
+  const token = values.token || process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+  const localSource = values.source ? resolve(values.source) : "";
+  let parent;
+  if (localSource) {
+    parent = {
+      repo: values["template-repo"] || loadConfig(destRoot).source || destRepo,
+      ref: "HEAD",
+    };
+  } else {
+    if (!token) {
+      process.stderr.write("A GitHub token is required to read the parent template\n");
+      return 1;
+    }
+    parent = resolveParent(destRoot, destRepo, token);
+  }
   if (!parent) {
     console.log("No parent template (not generated from a GitHub template, no `source` in config). Skip.");
     appendOutput("changed", "false");
@@ -236,10 +246,10 @@ export function main(argv = process.argv.slice(2)) {
   appendOutput("template", parent.repo);
   appendOutput("ref", parent.ref);
 
-  const workDir = mkdtempSync(join(tmpdir(), "template-sync-"));
-  const sourceRoot = join(workDir, "source");
+  const workDir = localSource ? "" : mkdtempSync(join(tmpdir(), "template-sync-"));
+  const sourceRoot = localSource || join(workDir, "source");
   try {
-    cloneSource(parent.repo, parent.ref, sourceRoot, token);
+    if (!localSource) cloneSource(parent.repo, parent.ref, sourceRoot, token);
     const sourceConfig = loadConfig(sourceRoot);
     const [sourceOwner, sourceName] = parent.repo.split("/");
     const [destOwner, destName] = destRepo.split("/");
@@ -271,7 +281,7 @@ export function main(argv = process.argv.slice(2)) {
       if (conflict) conflicts.push(destRel);
     }
 
-    writeState(destRoot, parent.repo, headSha);
+    if (!values["dry-run"]) writeState(destRoot, parent.repo, headSha);
     const status = run(["git", "status", "--porcelain"], { cwd: destRoot });
     const changed = changedFiles.length > 0 || Boolean(status.stdout.trim());
 
@@ -309,7 +319,7 @@ export function main(argv = process.argv.slice(2)) {
     appendOutput("draft", conflicts.length > 0 ? "true" : "false");
     return 0;
   } finally {
-    rmSync(workDir, { recursive: true, force: true });
+    if (workDir) rmSync(workDir, { recursive: true, force: true });
   }
 }
 

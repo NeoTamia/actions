@@ -412,9 +412,11 @@ export function threeWayMerge(ancestor, dest, incoming) {
     writeFileSync(ancestorFile, ancestor);
     writeFileSync(incomingFile, incoming);
     try {
-      const stdout = execFileSync("git", ["merge-file", "-p", destFile, ancestorFile, incomingFile], {
-        encoding: "utf8",
-      });
+      const stdout = execFileSync(
+        "git",
+        ["merge-file", "-p", "-L", "dest", "-L", "ancestor", "-L", "template", destFile, ancestorFile, incomingFile],
+        { encoding: "utf8" },
+      );
       return { text: stdout, conflict: false };
     } catch (error) {
       if (error.status > 0 && typeof error.stdout === "string") {
