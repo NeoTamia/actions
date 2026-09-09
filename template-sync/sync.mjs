@@ -16,13 +16,10 @@ import { parseArgs } from "node:util";
 import {
   STATE_PATH,
   classifyFile,
-  commonLinesAncestor,
   identityFromRepo,
   isBinary,
   loadConfig,
   mapPath,
-  mergeJson,
-  mergeToml,
   substitute,
   threeWayMerge,
 } from "./lib.mjs";
@@ -52,11 +49,6 @@ function run(args, { cwd, env, check = true, encoding = "utf8" } = {}) {
   }
 }
 
-function gitLsFiles(root) {
-  const result = run(["git", "ls-files", "-z"], { cwd: root });
-  return result.stdout.split("\0").filter(Boolean).map((item) => item.replaceAll("\\", "/"));
-}
-
 function gitShow(root, sha, relPath) {
   const result = run(["git", "show", `${sha}:${relPath}`], {
     cwd: root,
@@ -72,13 +64,31 @@ function gitRevParse(root, rev) {
   return result.status === 0 ? result.stdout.trim() : null;
 }
 
-function selectedSourceFiles(root, config) {
-  const selected = [];
-  for (const relPath of gitLsFiles(root)) {
-    const strategy = classifyFile(relPath, config);
-    if (strategy) selected.push({ relPath, strategy });
+function selectedSourceFiles(root, config, ancestorSha) {
+  const paths = run(["git", "diff", "--name-only", "--no-renames", "-z", ancestorSha, "HEAD"], { cwd: root });
+  return paths.stdout.split("\0").filter(Boolean)
+    .map((relPath) => ({ relPath, strategy: classifyFile(relPath, config) }))
+    .filter(({ strategy }) => strategy);
+}
+
+export function resolveAncestor(sourceRoot, destRoot, templateRepo, explicitBase) {
+  const state = loadState(destRoot);
+  if (state.template && state.template !== templateRepo) {
+    throw new Error(`Sync state belongs to ${state.template}, not ${templateRepo}`);
   }
-  return selected;
+  let sha = state.sha || explicitBase;
+  if (!sha) {
+    // GitHub generates a new root commit but preserves the template tree.
+    const roots = run(["git", "rev-list", "--max-parents=0", "HEAD"], { cwd: destRoot }).stdout.trim().split("\n");
+    const trees = new Set(roots.map((root) => gitRevParse(destRoot, `${root}^{tree}`)));
+    const history = run(["git", "log", "--format=%H %T", "HEAD"], { cwd: sourceRoot }).stdout.trim().split("\n");
+    sha = history.map((line) => line.split(" ")).find(([, tree]) => trees.has(tree))?.[0];
+  }
+  if (!sha || !/^[0-9a-f]{40}$/i.test(sha) ||
+      run(["git", "merge-base", "--is-ancestor", sha, "HEAD"], { cwd: sourceRoot, check: false }).status !== 0) {
+    throw new Error("Cannot establish the template baseline. Set source_sha in the destination .github/template-sync.yml to the full template commit SHA used to create the project (or last integrated manually).");
+  }
+  return sha;
 }
 
 function loadState(root) {
@@ -128,40 +138,39 @@ export function applyFile({
   ancestorSha,
   config,
 }) {
-  const sourceFile = join(sourceRoot, relPath);
   const destRel = mapPath(relPath, sourceId, destId, config);
   const destFile = join(destRoot, destRel);
-  const raw = readFileSync(sourceFile);
-  if (isBinary(raw)) {
-    mkdirSync(dirname(destFile), { recursive: true });
-    const before = existsSync(destFile) ? readFileSync(destFile) : null;
-    if (before && Buffer.compare(before, raw) === 0) return { changed: false, conflict: false };
-    writeFileSync(destFile, raw);
-    return { changed: true, conflict: false };
-  }
+  const raw = gitShow(sourceRoot, "HEAD", relPath);
+  const baseRaw = gitShow(sourceRoot, ancestorSha, relPath);
+  const before = existsSync(destFile) ? readFileSync(destFile) : null;
+  const rewrite = (data) => data === null ? null : isBinary(data) ? data
+    : Buffer.from(substitute(data.toString("utf8"), sourceId, destId, relPath, config));
+  const incoming = rewrite(raw);
+  const ancestor = rewrite(baseRaw);
+  const equal = (a, b) => a === null || b === null ? a === b : a.equals(b);
+  if (equal(ancestor, incoming) || equal(before, incoming)) return { changed: false, conflict: false };
 
-  const incoming = substitute(raw.toString("utf8"), sourceId, destId, relPath, config);
-  const destExists = existsSync(destFile);
-  const destText = destExists ? readFileSync(destFile, "utf8") : "";
-  let conflict = false;
   let output;
-
-  if (strategy === "merge_toml") {
-    output = destExists ? mergeToml(incoming, destText) : incoming;
-  } else if (strategy === "merge_json") {
-    output = destExists ? mergeJson(incoming, destText) : incoming;
-  } else if (strategy === "three_way" && destExists) {
-    const ancestor = commonLinesAncestor(destText, incoming);
-    const merged = threeWayMerge(ancestor, destText, incoming);
-    output = merged.text;
-    conflict = merged.conflict;
-  } else {
+  let conflict = false;
+  if (equal(before, ancestor)) {
     output = incoming;
+  } else {
+    if ([before, ancestor, incoming].some((data) => data && isBinary(data))) {
+      throw new Error(`Binary conflict in ${destRel}; resolve the template change manually`);
+    }
+    const merged = threeWayMerge(ancestor?.toString("utf8") ?? "", before?.toString("utf8") ?? "", incoming?.toString("utf8") ?? "");
+    output = Buffer.from(merged.text);
+    conflict = merged.conflict;
+    // Keep a local deletion when the merge produces no content.
+    if (!conflict && before === null && output.length === 0) output = null;
   }
 
-  if (destExists && output === destText) return { changed: false, conflict: false };
-  mkdirSync(dirname(destFile), { recursive: true });
-  writeFileSync(destFile, output);
+  if (equal(before, output)) return { changed: false, conflict };
+  if (output === null) rmSync(destFile, { force: true });
+  else {
+    mkdirSync(dirname(destFile), { recursive: true });
+    writeFileSync(destFile, output);
+  }
   return { changed: true, conflict };
 }
 
@@ -251,9 +260,10 @@ export function main(argv = process.argv.slice(2)) {
     const [destOwner, destName] = destRepo.split("/");
     const sourceId = identityFromRepo(sourceOwner, sourceName);
     const destId = identityFromRepo(destOwner, destName);
-    const files = selectedSourceFiles(sourceRoot, sourceConfig);
     const headSha = gitRevParse(sourceRoot, "HEAD");
-    const ancestorSha = loadState(destRoot).sha || gitRevParse(sourceRoot, "HEAD^");
+    const ancestorSha = resolveAncestor(sourceRoot, destRoot, parent.repo, loadConfig(destRoot).source_sha);
+    const files = selectedSourceFiles(sourceRoot, sourceConfig, ancestorSha);
+    console.log(`Template delta: ${ancestorSha}..${headSha}`);
 
     console.log(`Source identity: ${JSON.stringify(sourceId)}`);
     console.log(`Dest identity: ${JSON.stringify(destId)}`);
@@ -277,9 +287,9 @@ export function main(argv = process.argv.slice(2)) {
       if (conflict) conflicts.push(destRel);
     }
 
+    const stateChanged = loadState(destRoot).sha !== headSha;
     if (!values["dry-run"]) writeState(destRoot, parent.repo, headSha);
-    const status = run(["git", "status", "--porcelain"], { cwd: destRoot });
-    const changed = changedFiles.length > 0 || Boolean(status.stdout.trim());
+    const changed = changedFiles.length > 0 || stateChanged;
 
     if (!changed) {
       console.log("Already up to date");
@@ -301,6 +311,7 @@ export function main(argv = process.argv.slice(2)) {
     let body =
       `Automated sync from [\`${parent.repo}\`](https://github.com/${parent.repo}) ` +
       `(\`${parent.ref}\` @ \`${headSha.slice(0, 12)}\`).\n\n` +
+      `Template delta: [\`${ancestorSha.slice(0, 12)}...${headSha.slice(0, 12)}\`](https://github.com/${parent.repo}/compare/${ancestorSha}...${headSha}).\n\n` +
       `Updated files:\n${fileList}\n`;
     if (conflicts.length > 0) {
       body +=

@@ -184,13 +184,31 @@ Triggers on the generated repo: daily schedule, `workflow_dispatch`, or
 `repository_dispatch` (`template-sync`). The engine is stack-agnostic; each
 template describes its files and identity tokens in `.github/template-sync.yml`.
 
-Strategies:
+The PR contains one squash commit with the cumulative template delta since the
+last sync, restricted to configured paths and with the destination identity
+substituted. All selected files use a real three-way merge; local customizations
+are preserved and overlapping changes produce conflict markers in a draft PR.
+Template deletions are propagated; renames are handled as a deletion and addition.
+Conflicting binary changes stop the job for manual resolution.
 
-- `overwrite` — copy after rewriting the dest project identity
-- `merge_toml` — template keys win, dest-only keys are kept (Gradle version catalogs)
-- `merge_json` — same idea, deep-merge (`package.json` in Node / monorepos)
-- `three_way` — apply the template delta since the last sync (customized files)
-- `exclude` — never touch these paths (`src/**`, `README.md`, lockfiles, setup workflows)
+The baseline is `.github/template-sync-state.json` after the first merged sync.
+For the first run, the engine finds the template commit whose tree exactly matches
+the generated repository's initial commit. The destination checkout therefore
+needs its full history. If no exact match exists, set `source_sha:` in the
+destination `.github/template-sync.yml` to the full SHA of the template version
+originally used (or last integrated manually). The job fails rather than guessing
+an ancestor. A saved baseline must belong to the configured template and remain
+an ancestor of its current head.
+
+Path selection (existing configuration keys remain supported):
+
+- `overwrite`, `merge_toml`, `merge_json`, `three_way` — include matching paths.
+  These now all apply only the upstream delta with a three-way merge, including
+  JSON and TOML; they no longer overwrite complete files or all shared keys.
+- `exclude` — never touch these paths (`src/**`, `README.md`, lockfiles, setup workflows).
+
+The PR also updates the saved SHA, even when the delta only affects excluded
+paths. A dry run applies files locally without advancing this saved SHA.
 
 Built-in identity tokens, derived from the GitHub owner/repo name:
 
