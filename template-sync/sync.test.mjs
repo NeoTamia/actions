@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { main, resolveAncestor } from "./sync.mjs";
+import { main, resolveAncestor, resolveParent } from "./sync.mjs";
 import { STATE_PATH } from "./lib.mjs";
 
 function fixture(t) {
@@ -120,3 +120,26 @@ test("JSON and TOML only apply changed upstream lines, preserving local keys", (
   assert.match(readFileSync(join(f.dest, "versions.toml"), "utf8"), /a = "2"/);
   assert.match(readFileSync(join(f.dest, "versions.toml"), "utf8"), /local = "custom"/);
 });
+
+for (const scenario of [
+  { name: "prefers main by default", config: "", ref: "main", branch: "main" },
+  { name: "keeps explicit dev preference", config: "prefer_branch: dev\n", ref: "dev", branch: "dev" },
+  { name: "uses configured source ref directly", config: "source_ref: release/v1\n", ref: "release/v1" },
+  { name: "workflow source ref overrides config", config: "source_ref: dev\n", override: "main", ref: "main" },
+  { name: "falls back to template default when main is absent", config: "", missing: true, ref: "trunk", branch: "main" },
+]) {
+  test(`source branch: ${scenario.name}`, (t) => {
+    const f = fixture(t);
+    f.put(f.dest, ".github/template-sync.yml", `source: Acme/template\n${scenario.config}`);
+    const calls = [];
+    const api = (args) => {
+      calls.push(args[1]);
+      if (args[1].includes("/branches/")) return scenario.missing ? null : { name: scenario.branch };
+      return { default_branch: "trunk" };
+    };
+    assert.deepEqual(resolveParent(f.dest, "Acme/app", "token", scenario.override, api), { repo: "Acme/template", ref: scenario.ref });
+    assert.deepEqual(calls, scenario.branch
+      ? [`repos/Acme/template/branches/${scenario.branch}`, ...(scenario.missing ? ["repos/Acme/template"] : [])]
+      : []);
+  });
+}

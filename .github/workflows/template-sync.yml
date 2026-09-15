@@ -3,6 +3,16 @@ name: Template Sync
 on:
   workflow_call:
     inputs:
+      source_ref:
+        description: "Template branch or tag; overrides destination config when set"
+        required: false
+        type: string
+        default: ""
+      base_branch:
+        description: "PR target branch; defaults to dev, or main when dev does not exist"
+        required: false
+        type: string
+        default: ""
       dry_run:
         description: "Apply changes in the runner workspace without opening a PR"
         required: false
@@ -31,11 +41,15 @@ jobs:
         id: base
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
         run: |
-          if gh api "repos/${{ github.repository }}/branches/dev" >/dev/null 2>&1; then
+          if [ -n "$BASE_BRANCH" ]; then
+            git check-ref-format --branch "$BASE_BRANCH" >/dev/null
+            echo "branch=$BASE_BRANCH" >> "$GITHUB_OUTPUT"
+          elif gh api "repos/${{ github.repository }}/branches/dev" >/dev/null 2>&1; then
             echo "branch=dev" >> "$GITHUB_OUTPUT"
           else
-            echo "branch=${{ github.event.repository.default_branch }}" >> "$GITHUB_OUTPUT"
+            echo "branch=main" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout this repository
@@ -57,9 +71,11 @@ jobs:
         id: apply
         env:
           GH_TOKEN: ${{ github.token }}
+          SOURCE_REF: ${{ inputs.source_ref }}
         run: |
           node .neotamia-actions/template-sync/sync.mjs \
             --dest . \
+            --source-ref "$SOURCE_REF" \
             --dest-repo "${{ github.repository }}" \
             ${{ inputs.dry_run && '--dry-run' || '' }}
           rm -rf .neotamia-actions

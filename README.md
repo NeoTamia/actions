@@ -184,6 +184,28 @@ Triggers on the generated repo: daily schedule, `workflow_dispatch`, or
 `repository_dispatch` (`template-sync`). The engine is stack-agnostic; each
 template describes its files and identity tokens in `.github/template-sync.yml`.
 
+Branch selection:
+
+- Template source: workflow input `source_ref`, then destination config
+  `source_ref`, then `prefer_branch` (default: `main`). If the preferred branch
+  does not exist, use the template's default branch. An explicit `source_ref`
+  must exist; it does not fall back silently.
+- PR target: workflow input `base_branch`, otherwise `dev` if it exists,
+  otherwise `main`.
+
+For example, pin both branches in the caller's `jobs.sync.with`:
+
+```yaml
+source_ref: main
+base_branch: dev
+```
+
+Existing destination configs with `prefer_branch: dev` still select `dev` unless
+`source_ref` overrides it. Change that preference to `main` to adopt the new
+source default. When switching branches, the saved template SHA must still be
+an ancestor of the selected branch; merge the previous template changes there
+first if necessary.
+
 The PR contains one squash commit with the cumulative template delta since the
 last sync, restricted to configured paths and with the destination identity
 substituted. All selected files use a real three-way merge; local customizations

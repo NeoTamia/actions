@@ -174,22 +174,22 @@ export function applyFile({
   return { changed: true, conflict };
 }
 
-function resolveParent(destRoot, destRepo, token) {
+export function resolveParent(destRoot, destRepo, token, sourceRef = "", api = ghJson) {
   const destConfig = loadConfig(destRoot);
   let sourceRepo = destConfig.source || "";
   if (!sourceRepo) {
-    const info = ghJson(["api", `repos/${destRepo}`], token);
+    const info = api(["api", `repos/${destRepo}`], token);
     sourceRepo = info?.template_repository?.full_name || "";
   }
   if (!sourceRepo) return null;
 
-  let ref = destConfig.source_ref || "";
+  let ref = sourceRef || destConfig.source_ref || "";
   if (!ref) {
-    const prefer = destConfig.prefer_branch || "dev";
-    const branch = ghJson(["api", `repos/${sourceRepo}/branches/${prefer}`], token, { check: false });
+    const prefer = destConfig.prefer_branch || "main";
+    const branch = api(["api", `repos/${sourceRepo}/branches/${encodeURIComponent(prefer)}`], token, { check: false });
     if (branch) ref = prefer;
     else {
-      const srcInfo = ghJson(["api", `repos/${sourceRepo}`], token);
+      const srcInfo = api(["api", `repos/${sourceRepo}`], token);
       ref = srcInfo?.default_branch || "main";
     }
   }
@@ -210,6 +210,7 @@ export function main(argv = process.argv.slice(2)) {
       dest: { type: "string", default: "." },
       "dest-repo": { type: "string" },
       source: { type: "string" },
+      "source-ref": { type: "string" },
       "template-repo": { type: "string" },
       token: { type: "string" },
       "dry-run": { type: "boolean", default: false },
@@ -237,7 +238,7 @@ export function main(argv = process.argv.slice(2)) {
       process.stderr.write("A GitHub token is required to read the parent template\n");
       return 1;
     }
-    parent = resolveParent(destRoot, destRepo, token);
+    parent = resolveParent(destRoot, destRepo, token, values["source-ref"]);
   }
   if (!parent) {
     console.log("No parent template (not generated from a GitHub template, no `source` in config). Skip.");

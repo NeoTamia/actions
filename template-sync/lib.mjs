@@ -45,7 +45,7 @@ export function defaultConfig() {
     source: "",
     source_ref: "",
     source_sha: "",
-    prefer_branch: "dev",
+    prefer_branch: "main",
     overwrite: [...DEFAULT_OVERWRITE],
     merge_toml: [],
     merge_json: [],
