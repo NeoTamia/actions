@@ -84,9 +84,14 @@ export function resolveAncestor(sourceRoot, destRoot, templateRepo, explicitBase
     const history = run(["git", "log", "--format=%H %T", "HEAD"], { cwd: sourceRoot }).stdout.trim().split("\n");
     sha = history.map((line) => line.split(" ")).find(([, tree]) => trees.has(tree))?.[0];
   }
-  if (!sha || !/^[0-9a-f]{40}$/i.test(sha) ||
-      run(["git", "merge-base", "--is-ancestor", sha, "HEAD"], { cwd: sourceRoot, check: false }).status !== 0) {
-    throw new Error("Cannot establish the template baseline. Set source_sha in the destination .github/template-sync.yml to the full template commit SHA used to create the project (or last integrated manually).");
+  if (!sha || !/^[0-9a-f]{40}$/i.test(sha) || !gitRevParse(sourceRoot, `${sha}^{commit}`)) {
+    throw new Error("Cannot establish the template baseline. Check the saved sync state or set source_sha in the destination .github/template-sync.yml when no sync state exists.");
+  }
+  const isAncestor = (base, head) => run(["git", "merge-base", "--is-ancestor", base, head], {
+    cwd: sourceRoot, check: false,
+  }).status === 0;
+  if (!isAncestor(sha, "HEAD") && !isAncestor("HEAD", sha)) {
+    throw new Error(`Template history has diverged from baseline ${sha}. Merge the previously integrated template history into the selected source branch before syncing.`);
   }
   return sha;
 }
@@ -263,6 +268,13 @@ export function main(argv = process.argv.slice(2)) {
     const destId = identityFromRepo(destOwner, destName);
     const headSha = gitRevParse(sourceRoot, "HEAD");
     const ancestorSha = resolveAncestor(sourceRoot, destRoot, parent.repo, loadConfig(destRoot).source_sha);
+    if (ancestorSha !== headSha && run(["git", "merge-base", "--is-ancestor", "HEAD", ancestorSha], {
+      cwd: sourceRoot, check: false,
+    }).status === 0) {
+      console.log(`Template ${parent.ref} at ${headSha} is behind the integrated baseline ${ancestorSha}; waiting for the source branch to catch up. No files or sync state changed.`);
+      appendOutput("changed", "false");
+      return 0;
+    }
     const files = selectedSourceFiles(sourceRoot, sourceConfig, ancestorSha);
     console.log(`Template delta: ${ancestorSha}..${headSha}`);
 

@@ -202,9 +202,10 @@ base_branch: dev
 
 Existing destination configs with `prefer_branch: dev` still select `dev` unless
 `source_ref` overrides it. Change that preference to `main` to adopt the new
-source default. When switching branches, the saved template SHA must still be
-an ancestor of the selected branch; merge the previous template changes there
-first if necessary.
+source default. When switching to a branch behind the saved template SHA, the
+engine waits without modifying files or the saved SHA until that branch catches
+up. Divergent histories still fail: merge the previously integrated template
+history into the selected source branch first.
 
 The PR contains one squash commit with the cumulative template delta since the
 last sync, restricted to configured paths and with the destination identity
@@ -219,8 +220,8 @@ the generated repository's initial commit. The destination checkout therefore
 needs its full history. If no exact match exists, set `source_sha:` in the
 destination `.github/template-sync.yml` to the full SHA of the template version
 originally used (or last integrated manually). The job fails rather than guessing
-an ancestor. A saved baseline must belong to the configured template and remain
-an ancestor of its current head.
+an ancestor. A saved baseline must belong to the configured template and share a direct
+ancestry relationship with its current head.
 
 Path selection (existing configuration keys remain supported):
 

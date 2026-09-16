@@ -143,3 +143,34 @@ for (const scenario of [
       : []);
   });
 }
+
+test("waits for an older source branch without reverting files or state, then resumes", (t) => {
+  const f = fixture(t);
+  f.put(f.source, "new.txt", "integrated\n");
+  const integrated = f.commit(f.source);
+  f.sync(); f.commit(f.dest);
+  const state = readFileSync(join(f.dest, STATE_PATH), "utf8");
+  f.git(f.source, "checkout", "--detach", f.base);
+  for (const args of [[], ["--dry-run"]]) {
+    assert.equal(f.sync(...args), 0);
+    assert.equal(readFileSync(join(f.dest, STATE_PATH), "utf8"), state);
+    assert.equal(readFileSync(join(f.dest, "new.txt"), "utf8"), "integrated\n");
+    assert.equal(f.git(f.dest, "status", "--porcelain"), "");
+  }
+  f.git(f.source, "checkout", "--detach", integrated);
+  f.put(f.source, "new.txt", "next release\n");
+  const next = f.commit(f.source);
+  assert.equal(f.sync(), 0);
+  assert.equal(readFileSync(join(f.dest, "new.txt"), "utf8"), "next release\n");
+  assert.equal(JSON.parse(readFileSync(join(f.dest, STATE_PATH))).sha, next);
+});
+
+test("rejects divergent template histories without changing the destination", (t) => {
+  const f = fixture(t);
+  f.put(f.source, "new.txt", "integrated\n"); f.commit(f.source);
+  f.sync(); f.commit(f.dest);
+  f.git(f.source, "checkout", "--detach", f.base);
+  f.put(f.source, "other.txt", "divergent\n"); f.commit(f.source);
+  assert.throws(() => f.sync(), /history has diverged/);
+  assert.equal(f.git(f.dest, "status", "--porcelain"), "");
+});
