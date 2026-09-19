@@ -15,8 +15,9 @@ const TOKEN_NAMES = [
   "camel",
   "display",
   "slug",
+  "slug_no_prefix",
 ];
-const TOKEN_RE = /\{(owner|owner_lower|owner_slug|kebab|pascal|camel|display|slug)\}/g;
+const TOKEN_RE = /\{(owner|owner_lower|owner_slug|kebab|pascal|camel|display|slug|slug_no_prefix)\}/g;
 const TOML_TABLE_RE = /^\[([^\]]+)]\s*$/gm;
 const TOML_KEY_RE = /^([A-Za-z0-9_-]+)\s*=/;
 
@@ -52,6 +53,7 @@ export function defaultConfig() {
     three_way: [...DEFAULT_THREE_WAY],
     exclude: [...DEFAULT_EXCLUDE],
     identity: {
+      prefix: "",
       extra: {},
       owner_files: [...DEFAULT_OWNER_FILES],
     },
@@ -205,6 +207,9 @@ export function loadConfig(root, { readFile = readFileSync } = {}) {
     config[field] = value;
   }
   if (parsed.identity && typeof parsed.identity === "object" && !Array.isArray(parsed.identity)) {
+    if (typeof parsed.identity.prefix === "string") {
+      config.identity.prefix = parsed.identity.prefix;
+    }
     if (parsed.identity.extra && typeof parsed.identity.extra === "object" && !Array.isArray(parsed.identity.extra)) {
       config.identity.extra = parsed.identity.extra;
     }
@@ -229,8 +234,23 @@ export function kebabToPascal(value) {
     .replaceAll(/[-_]/g, "");
 }
 
-export function identityFromRepo(owner, repoName) {
+/**
+ * Strip an organization prefix from a repository name, case-insensitively.
+ * Only strips when the prefix is followed by an uppercase letter or a separator,
+ * so unrelated names sharing the prefix (e.g. `NTools`) are left untouched.
+ * This mirrors the shell logic used by generated projects' setup workflow.
+ */
+export function stripRepoPrefix(repoName, prefix) {
+  if (!prefix || !repoName.toLowerCase().startsWith(prefix.toLowerCase())) return repoName;
+  const rest = repoName.slice(prefix.length);
+  if (/^[A-Z]/.test(rest)) return rest;
+  if (/^[-_]/.test(rest)) return rest.slice(1);
+  return repoName;
+}
+
+export function identityFromRepo(owner, repoName, prefix = "") {
   const pascal = kebabToPascal(repoName);
+  const short = stripRepoPrefix(repoName, prefix);
   return {
     owner,
     owner_lower: owner.toLowerCase(),
@@ -240,6 +260,7 @@ export function identityFromRepo(owner, repoName) {
     camel: pascalToCamel(pascal),
     display: pascalToDisplay(pascal),
     slug: repoName.toLowerCase().replaceAll(/[^a-z0-9]/g, ""),
+    slug_no_prefix: short.toLowerCase().replaceAll(/[^a-z0-9]/g, ""),
   };
 }
 

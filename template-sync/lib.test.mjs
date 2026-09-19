@@ -29,8 +29,9 @@ function gradleConfig() {
   config.merge_toml = ["gradle/libs.versions.toml"];
   config.three_way.push("buildSrc/src/main/kotlin/*-build.gradle.kts", "gradle.properties");
   config.exclude.push(".github/workflows/project-setup.yml", "modules/**");
+  config.identity.prefix = "NT";
   config.identity.extra = {
-    "re.neotamia.kotlintemplate": "re.{owner_slug}.{slug}",
+    "re.neotamia.kotlintemplate": "re.{owner_slug}.{slug_no_prefix}",
     "neotamia-build": "{slug}-build",
   };
   config.identity.owner_files = [
@@ -68,8 +69,9 @@ overwrite:
   - .editorconfig
   - gradle/wrapper/**
 identity:
+  prefix: NT
   extra:
-    re.neotamia.kotlintemplate: re.{owner_slug}.{slug}
+    re.neotamia.kotlintemplate: re.{owner_slug}.{slug_no_prefix}
     neotamia-build: "{slug}-build"
   owner_files:
     - README.md
@@ -79,7 +81,8 @@ identity:
   assert.equal(parsed.prefer_branch, "dev");
   assert.deepEqual(parsed.exclude_repos, ["archived-demo"]);
   assert.deepEqual(parsed.overwrite, [".editorconfig", "gradle/wrapper/**"]);
-  assert.equal(parsed.identity.extra["re.neotamia.kotlintemplate"], "re.{owner_slug}.{slug}");
+  assert.equal(parsed.identity.prefix, "NT");
+  assert.equal(parsed.identity.extra["re.neotamia.kotlintemplate"], "re.{owner_slug}.{slug_no_prefix}");
   assert.equal(parsed.identity.extra["neotamia-build"], "{slug}-build");
   assert.deepEqual(parsed.identity.owner_files, ["README.md", "settings.gradle.kts"]);
 });
@@ -92,6 +95,7 @@ test("identityFromRepo is stack-agnostic", () => {
   assert.equal(kotlin.camel, "kotlinTemplate");
   assert.equal(kotlin.display, "Kotlin Template");
   assert.equal(kotlin.slug, "kotlintemplate");
+  assert.equal(kotlin.slug_no_prefix, "kotlintemplate");
   assert.equal(kotlin.owner_lower, "neotamia");
   assert.equal(kotlin.owner_slug, "neotamia");
   assert.equal(interpolate("re.{owner_slug}.{slug}", kotlin), "re.neotamia.kotlintemplate");
@@ -100,6 +104,35 @@ test("identityFromRepo is stack-agnostic", () => {
   const node = identityFromRepo("Acme", "my-app");
   assert.equal(interpolate("@{owner_lower}/{kebab}-config", node), "@acme/my-app-config");
   assert.equal(interpolate("{slug}-build", identityFromRepo("NeoTamia", "plugin-template")), "plugintemplate-build");
+});
+
+test("organization prefix is stripped for slug_no_prefix only", () => {
+  const config = gradleConfig();
+  const source = identityFromRepo("NeoTamia", "kotlin-template", "NT");
+  const dest = identityFromRepo("NeoTamia", "NTConfig", "NT");
+  assert.equal(dest.slug, "ntconfig");
+  assert.equal(dest.slug_no_prefix, "config");
+
+  const rewritten = substitute(
+    'val baseGroup = "re.neotamia.kotlintemplate"\nid("neotamia-build")\n',
+    source,
+    dest,
+    "buildSrc/src/main/kotlin/neotamia-build.gradle.kts",
+    config,
+  );
+  assert.match(rewritten, /re\.neotamia\.config/);
+  assert.match(rewritten, /ntconfig-build/);
+  assert.doesNotMatch(rewritten, /re\.neotamia\.ntconfig/);
+  assert.equal(
+    mapPath("buildSrc/src/main/kotlin/neotamia-build.gradle.kts", source, dest, config),
+    "buildSrc/src/main/kotlin/ntconfig-build.gradle.kts",
+  );
+
+  assert.equal(identityFromRepo("NeoTamia", "NTDiscordBot", "NT").slug_no_prefix, "discordbot");
+  assert.equal(identityFromRepo("NeoTamia", "NT_Config", "NT").slug_no_prefix, "config");
+  assert.equal(identityFromRepo("NeoTamia", "Config", "NT").slug_no_prefix, "config");
+  assert.equal(identityFromRepo("NeoTamia", "NTools", "NT").slug_no_prefix, "ntools");
+  assert.equal(identityFromRepo("NeoTamia", "NTConfig").slug_no_prefix, "ntconfig");
 });
 
 test("gradle extras rewrite package, convention plugin, and path", () => {
@@ -244,6 +277,7 @@ prefer_branch: dev
 merge_json:
   - package.json
 identity:
+  prefix: NT
   extra:
     "@neotamia/monorepo-template": "@{owner_lower}/{kebab}"
   owner_files:
@@ -258,6 +292,7 @@ overwrite:
     assert.equal(config.prefer_branch, "dev");
     assert.deepEqual(config.overwrite, [".editorconfig"]);
     assert.deepEqual(config.merge_json, ["package.json"]);
+    assert.equal(config.identity.prefix, "NT");
     assert.equal(config.identity.extra["@neotamia/monorepo-template"], "@{owner_lower}/{kebab}");
   } finally {
     rmSync(dir, { recursive: true, force: true });

@@ -262,10 +262,11 @@ export function main(argv = process.argv.slice(2)) {
   try {
     if (!localSource) cloneSource(parent.repo, parent.ref, sourceRoot, token);
     const sourceConfig = loadConfig(sourceRoot);
+    const prefix = sourceConfig.identity?.prefix ?? "";
     const [sourceOwner, sourceName] = parent.repo.split("/");
     const [destOwner, destName] = destRepo.split("/");
-    const sourceId = identityFromRepo(sourceOwner, sourceName);
-    const destId = identityFromRepo(destOwner, destName);
+    const sourceId = identityFromRepo(sourceOwner, sourceName, prefix);
+    const destId = identityFromRepo(destOwner, destName, prefix);
     const headSha = gitRevParse(sourceRoot, "HEAD");
     const ancestorSha = resolveAncestor(sourceRoot, destRoot, parent.repo, loadConfig(destRoot).source_sha);
     if (ancestorSha !== headSha && run(["git", "merge-base", "--is-ancestor", "HEAD", ancestorSha], {

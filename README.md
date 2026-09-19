@@ -245,6 +245,14 @@ Built-in identity tokens, derived from the GitHub owner/repo name:
 | `{camel}` | `kotlinTemplate` |
 | `{display}` | `Kotlin Template` |
 | `{slug}` | `kotlintemplate` |
+| `{slug_no_prefix}` | `kotlintemplate` (or `config` for `NTConfig`) |
+
+Set `identity.prefix` to the organization prefix that should be stripped from
+repository names for the `{slug_no_prefix}` token. The prefix is removed
+case-insensitively only when followed by an uppercase letter or a separator, so
+`NTConfig` → `config`, `NTDiscordBot` → `discordbot`, `NT_Config` → `config`,
+but `NTools` is left unchanged. The prefix defaults to empty, making
+`{slug_no_prefix}` equal `{slug}`.
 
 Stack-specific strings go under `identity.extra`. The key is the literal in the
 template; the value is interpolated for the destination repo:
@@ -252,8 +260,9 @@ template; the value is interpolated for the destination repo:
 ```yaml
 # Gradle / Kotlin
 identity:
+  prefix: NT
   extra:
-    re.neotamia.kotlintemplate: re.{owner_slug}.{slug}
+    re.neotamia.kotlintemplate: re.{owner_slug}.{slug_no_prefix}
     neotamia-build: "{slug}-build"
 
 # Node / monorepo
